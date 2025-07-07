@@ -1,0 +1,18 @@
+.hotspot {
+  background-color: rgba(73, 136, 194);
+  color: white;
+  padding: 10px;
+  cursor: pointer;
+  border-radius: 0.5rem;
+  transition: background-color 0.3s;
+}
+
+.hotspot:hover {
+  background-color: rgba(255, 255, 255);
+  color: black;
+}
+
+.hotspot-label {
+  font-family: sans-serif;
+  font-size: 14px;
+}
