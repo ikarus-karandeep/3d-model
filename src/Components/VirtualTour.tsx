@@ -6,6 +6,7 @@ import * as THREE from 'three';
 import { RGBELoader } from 'three/examples/jsm/loaders/RGBELoader.js';
 import { tourStops } from '../tourData';
 import { gsap } from 'gsap';
+import { ProjectedMaterial } from './Temp';
 
 interface HotspotProps {
   position: THREE.Vector3;
@@ -26,18 +27,44 @@ const Hotspot = ({ position, onClick, label }: HotspotProps) => {
 interface ModelProps {
   url: string;
   position: THREE.Vector3;
+  hdripath: string;
 }
 
-const Model = ({url, position}: ModelProps) => {
+const Model = ({url, position, hdripath}: ModelProps) => {
   const glb = useGLTF(url);
-  const mesh = useRef<THREE.Mesh>(null);
+  const materialRef = useRef<THREE.MeshBasicMaterial>(null!);
 
-  // if(mesh.current) {
-  //   mesh.current.position.set(position.x, position.y, position.z);
-  // }
+  useEffect(() => {
+    new RGBELoader().load(hdripath, (texture) => {
+      texture.mapping = THREE.EquirectangularReflectionMapping;
+      if (materialRef.current) {
+        materialRef.current.map = texture;
+        materialRef.current.needsUpdate = true;
+      }
+    })
+  }, [hdripath]);
+
+  useEffect(() => {
+    if (glb.scene && materialRef.current) {
+      glb.scene.traverse((child) => {
+        if (child instanceof THREE.Mesh) {
+          child.material = materialRef.current;
+        }
+      })
+    }
+  }, [glb.scene]);
 
   return (
-    <primitive object={glb.scene} ref={mesh} position={[...position]}/>
+    <>
+      <meshBasicMaterial 
+        ref={materialRef} 
+        side={THREE.BackSide} 
+        transparent={true}
+        toneMapped={false}
+      />
+      <primitive object={glb.scene} position={[...position]}/>
+      
+    </>
   );
 }
 
@@ -84,6 +111,7 @@ const Scene = () => {
     
     textureLoader.load(initialTexturePath, (texture) => {
       texture.mapping = THREE.EquirectangularReflectionMapping;
+      console.log(texture.mapping);
       materials[0].map = texture;
       materials[0].needsUpdate = true;
     });
@@ -126,14 +154,14 @@ const Scene = () => {
       });
       
       // Animate the camera to the new position
-      tl.to(controls.object.position, { ...newTargetPosition, duration: 1.5, ease: 'power2.inOut' }, 0);
+      tl.to(controls.object.position, { ...newTargetPosition, duration: 1, ease: 'power2.inOut' }, 0);
       
       // Animate the target to the new "look-at" point
-      tl.to(controls.target, { ...toStop.position, duration: 1.5, ease: 'power2.inOut' }, 0);
+      tl.to(controls.target, { ...toStop.position, duration: 1, ease: 'power2.inOut' }, 0);
 
       // Animate the material cross-fade
-      tl.to(activeMaterial, { opacity: 0, duration: 1.5, ease: 'power2.inOut' }, 0);
-      tl.to(inactiveMaterial, { opacity: 1, duration: 1.5, ease: 'power2.inOut' }, 0);
+      tl.to(activeMaterial, { opacity: 0, duration: 1, ease: 'power2.inOut' }, 0);
+      tl.to(inactiveMaterial, { opacity: 1, duration: 1, ease: 'power2.inOut' }, 0);
     });
   };
 
@@ -143,10 +171,12 @@ const Scene = () => {
   return (
     <>
       <OrbitControls ref={controlsRef} enablePan={false} enableZoom={false} enabled={!isTransitioning} />
-      <Model url={tourStops[0].meshPath} position={tourStops[0].position}/>
-      <Model url={tourStops[1].meshPath} position={tourStops[1].position}/>
-      <Model url={tourStops[2].meshPath} position={tourStops[2].position}/>
 
+      <Model url={tourStops[0].meshPath} hdripath={tourStops[0].hdriPath} position={tourStops[0].position}/>
+      <Model url={tourStops[1].meshPath} hdripath={tourStops[1].hdriPath} position={tourStops[1].position}/>
+      <Model url={tourStops[2].meshPath} hdripath={tourStops[2].hdriPath} position={tourStops[2].position}/>
+      <Model url={tourStops[3].meshPath} hdripath={tourStops[3].hdriPath} position={tourStops[3].position}/>
+      
       <mesh material={materials[0]}>
         <sphereGeometry args={[500, 60, 40]} />
       </mesh>
