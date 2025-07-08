@@ -1,8 +1,7 @@
-import { useState, useRef, useEffect, useMemo } from "react";
-import { Canvas, useThree } from "@react-three/fiber";
-import { OrbitControls, Html, useGLTF } from "@react-three/drei";
+import { useState, useRef, useEffect } from "react";
+import { Canvas, useFrame } from "@react-three/fiber";
+import { OrbitControls, Html } from "@react-three/drei";
 import * as THREE from "three";
-import { RGBELoader } from "three/examples/jsm/loaders/RGBELoader.js";
 import { tourStops } from "../tourData";
 import { gsap } from "gsap";
 import { RoomProjector } from "./RoomProjector";
@@ -19,119 +18,149 @@ const Hotspot = ({ position, onClick, label }) => {
 
 const Scene = () => {
   const [currentStopIndex, setCurrentStopIndex] = useState(0);
+  const [nextStopIndex, setNextStopIndex] = useState(null);
   const [isTransitioning, setIsTransitioning] = useState(false);
+  const [transitionProgress, setTransitionProgress] = useState(0);
 
   const controlsRef = useRef(null);
-
-  let cameraDirection = new THREE.Vector3();
-  const { camera } = useThree();
-  camera.getWorldDirection(cameraDirection);
-
-  if (controlsRef.current) {
-    let targetPos = camera.position.clone();
-    targetPos.add(cameraDirection);
-    controlsRef.current.target.set(targetPos.x, targetPos.y, targetPos.z);
-  }
-
-  const materials = useMemo(
-    () => [
-      new THREE.MeshBasicMaterial({ side: THREE.BackSide, transparent: true }),
-      new THREE.MeshBasicMaterial({
-        side: THREE.BackSide,
-        transparent: true,
-        opacity: 0,
-      }),
-    ],
-    []
-  );
-
-  const [activeMaterialIndex, setActiveMaterialIndex] = useState(0);
-
-  const textureLoader = useMemo(() => new RGBELoader(), []);
+  const transitionDataRef = useRef(null); // Store transition interpolation data
 
   useEffect(() => {
-    const initialStop = tourStops[0];
-    const initialTexturePath = initialStop.hdriPath;
+    if (controlsRef.current && tourStops.length > 1) {
+      const controls = controlsRef.current;
+      const camera = controls.object;
+      camera.lookAt(tourStops[1].position);
 
-    if (controlsRef.current) {
-      controlsRef.current.target.set(
-        initialStop.position.x,
-        initialStop.position.y,
-        initialStop.position.z
-      );
+      const lookDirection = new THREE.Vector3();
+      camera.getWorldDirection(lookDirection);
+      const initialTarget = new THREE.Vector3()
+        .copy(camera.position)
+        .add(lookDirection.multiplyScalar(0.01));
+
+      controls.target.copy(initialTarget);
+      controls.update();
     }
+  }, []);
 
-    textureLoader.load(initialTexturePath, (texture) => {
-      texture.mapping = THREE.EquirectangularReflectionMapping;
-      materials[0].map = texture;
-      materials[0].needsUpdate = true;
-    });
-  }, [materials, textureLoader]);
+  useFrame(() => {
+    if (!controlsRef.current) return;
+
+    const camera = controlsRef.current.object;
+    const controls = controlsRef.current;
+
+    if (isTransitioning && transitionDataRef.current) {
+      // During transition, smoothly interpolate both position and target
+      const { startPosition, endPosition, startTarget, endTarget, progress } =
+        transitionDataRef.current;
+
+      // Smooth interpolation using easing
+      const easeProgress = 1 - Math.pow(1 - progress, 3); // Cubic ease-out for smoother feeling
+
+      // Interpolate camera position
+      const currentPos = new THREE.Vector3().lerpVectors(
+        startPosition,
+        endPosition,
+        easeProgress
+      );
+      camera.position.copy(currentPos);
+
+      // Interpolate camera target for smooth rotation
+      const currentTarget = new THREE.Vector3().lerpVectors(
+        startTarget,
+        endTarget,
+        easeProgress
+      );
+      controls.target.copy(currentTarget);
+      controls.update();
+    } else if (!isTransitioning) {
+      // During idle "look around" state, keep the target just in front of the camera.
+      const lookDirection = new THREE.Vector3();
+      camera.getWorldDirection(lookDirection);
+
+      const newTarget = new THREE.Vector3()
+        .copy(camera.position)
+        .add(lookDirection.multiplyScalar(0.01));
+
+      // Use a gentle lerp to avoid any potential snapping from user input.
+      controls.target.lerp(newTarget, 0.1);
+      controls.update();
+    }
+  });
 
   const handleTransition = (toStopId) => {
     if (isTransitioning || !controlsRef.current) return;
 
+    const fromStop = tourStops[currentStopIndex];
     const toStop = tourStops.find((s) => s.id === toStopId);
     if (!toStop || toStop.id === currentStopIndex) return;
 
     setIsTransitioning(true);
+    setNextStopIndex(toStop.id);
 
-    const activeMaterial = materials[activeMaterialIndex];
-    const inactiveMaterial = materials[activeMaterialIndex === 0 ? 1 : 0];
+    const controls = controlsRef.current;
+    const camera = controls.object;
 
-    camera.getWorldDirection(cameraDirection);
-    cameraDirection.multiplyScalar(-1);
-    const newTargetPosition = new THREE.Vector3(
-      toStop.position.x,
-      toStop.position.y,
-      toStop.position.z
-    );
-    newTargetPosition.add(cameraDirection);
+    // Capture the current camera state
+    const startPosition = camera.position.clone();
+    const startTarget = controls.target.clone();
 
-    textureLoader.load(toStop.hdriPath, (texture) => {
-      texture.mapping = THREE.EquirectangularReflectionMapping;
-      inactiveMaterial.map = texture;
-      inactiveMaterial.needsUpdate = true;
+    // Calculate the end target - look towards the destination
+    const directionToDestination = new THREE.Vector3()
+      .subVectors(toStop.position, fromStop.position)
+      .normalize();
 
-      const controls = controlsRef.current;
+    const endTarget = new THREE.Vector3()
+      .copy(toStop.position)
+      .add(directionToDestination.multiplyScalar(0.01));
 
-      const tl = gsap.timeline({
-        onComplete: () => {
-          setActiveMaterialIndex((prevIndex) => (prevIndex === 0 ? 1 : 0));
-          setCurrentStopIndex(toStop.id);
-          setIsTransitioning(false);
-        },
-      });
+    // Store transition data for useFrame
+    transitionDataRef.current = {
+      startPosition: startPosition,
+      endPosition: toStop.position.clone(),
+      startTarget: startTarget,
+      endTarget: endTarget,
+      progress: 0,
+    };
 
-      // Animate the camera to the new position
-      tl.to(
-        controls.object.position,
-        { ...newTargetPosition, duration: 1, ease: "power2.inOut" },
-        0
-      );
-
-      // Animate the target to the new "look-at" point
-      tl.to(
-        controls.target,
-        { ...toStop.position, duration: 1, ease: "power2.inOut" },
-        0
-      );
-
-      // Animate the material cross-fade
-      tl.to(
-        activeMaterial,
-        { opacity: 0, duration: 1, ease: "power2.inOut" },
-        0
-      );
-      tl.to(
-        inactiveMaterial,
-        { opacity: 1, duration: 1, ease: "power2.inOut" },
-        0
-      );
+    // Create animation timeline
+    const tl = gsap.timeline({
+      onComplete: () => {
+        setCurrentStopIndex(toStop.id);
+        setNextStopIndex(null);
+        setTransitionProgress(0);
+        setIsTransitioning(false);
+        transitionDataRef.current = null;
+      },
     });
+
+    // Animate the progress value that useFrame will use for interpolation
+    tl.to(
+      transitionDataRef.current,
+      {
+        progress: 1,
+        duration: 2.0, // Slightly longer for smoother feeling
+        ease: "power2.inOut",
+      },
+      0
+    );
+
+    // Animate the shader blend factor separately
+    tl.to(
+      { value: 0 },
+      {
+        value: 1,
+        duration: 2.0,
+        ease: "power2.inOut",
+        onUpdate: function () {
+          setTransitionProgress(this.targets()[0].value);
+        },
+      },
+      0
+    );
   };
 
   const currentStop = tourStops[currentStopIndex];
+  const nextStop = nextStopIndex !== null ? tourStops[nextStopIndex] : null;
   const displayedStops = tourStops.filter((s) => s.id !== currentStop.id);
 
   return (
@@ -141,18 +170,18 @@ const Scene = () => {
         enablePan={false}
         enableZoom={false}
         enabled={!isTransitioning}
+        minPolarAngle={Math.PI / 4}
+        maxPolarAngle={Math.PI - Math.PI / 4}
+        enableDamping={true}
+        dampingFactor={0.05}
       />
-      <RoomProjector pointInfo={tourStops[0]} />
-      <RoomProjector pointInfo={tourStops[1]} />
-      <RoomProjector pointInfo={tourStops[2]} />
-      <RoomProjector pointInfo={tourStops[3]} />
 
-      {/* <mesh material={materials[0]}>
-        <sphereGeometry args={[500, 60, 40]} />
-      </mesh>
-      <mesh material={materials[1]}>
-        <sphereGeometry args={[500, 60, 40]} />
-      </mesh> */}
+      <RoomProjector
+        tourStops={tourStops}
+        currentStop={currentStop}
+        nextStop={nextStop}
+        transitionProgress={transitionProgress}
+      />
 
       {!isTransitioning &&
         displayedStops.map((stop) => (
@@ -168,11 +197,11 @@ const Scene = () => {
 };
 
 export const VirtualTour = () => {
-  const initialPos = tourStops[0].position.clone();
+  const initialPos = tourStops[0].position;
 
   return (
     <div style={{ width: "100vw", height: "100vh" }}>
-      <Canvas camera={{ position: initialPos, fov: 75 }}>
+      <Canvas camera={{ position: initialPos, fov: 55 }}>
         <Scene />
       </Canvas>
     </div>
