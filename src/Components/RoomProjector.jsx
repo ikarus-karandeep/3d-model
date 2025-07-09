@@ -1,4 +1,4 @@
-import React, { useMemo, useRef } from "react";
+import React, { useMemo, useRef, useEffect, useState } from "react";
 import { useLoader } from "@react-three/fiber";
 import { useGLTF } from "@react-three/drei";
 import * as THREE from "three";
@@ -25,7 +25,7 @@ function RoomMesh({ meshPath, material, position, onClick }) {
       material={material}
       position={position}
       onClick={onClick}
-      onPointerMove={(e) => {
+      onPointerMove={() => {
         document.body.style.cursor = "crosshair";
       }}
       onPointerLeave={() => {
@@ -42,8 +42,16 @@ export function RoomProjector({
   transitionProgress,
   onMeshClick,
 }) {
+  const [isHdriLoaded, setIsHdriLoaded] = useState(false);
+
+  // Preload HDRI maps (good for Vercel & online environments)
+  useEffect(() => {
+    tourStops.forEach((stop) => {
+      useLoader.preload(RGBELoader, stop.hdriPath);
+    });
+  }, [tourStops]);
+
   const currentHdriMap = useLoader(RGBELoader, currentStop.hdriPath);
-  // For HDRI textures, use LinearSRGBColorSpace instead of SRGBColorSpace
   currentHdriMap.colorSpace = THREE.LinearSRGBColorSpace;
   currentHdriMap.mapping = THREE.EquirectangularReflectionMapping;
 
@@ -51,10 +59,18 @@ export function RoomProjector({
     RGBELoader,
     nextStop ? nextStop.hdriPath : currentStop.hdriPath
   );
-  if (nextStop) {
-    nextHdriMap.colorSpace = THREE.LinearSRGBColorSpace;
-    nextHdriMap.mapping = THREE.EquirectangularReflectionMapping;
-  }
+  nextHdriMap.colorSpace = THREE.LinearSRGBColorSpace;
+  nextHdriMap.mapping = THREE.EquirectangularReflectionMapping;
+
+  // Wait for both HDRIs to load
+  useEffect(() => {
+    if (currentHdriMap?.image && nextHdriMap?.image) {
+      console.log("✅ HDRIs loaded:", currentStop.hdriPath, nextStop?.hdriPath);
+      setIsHdriLoaded(true);
+    } else {
+      console.warn("❌ HDRI not fully loaded");
+    }
+  }, [currentHdriMap, nextHdriMap, currentStop, nextStop]);
 
   const sharedMaterial = useMemo(
     () =>
@@ -68,104 +84,93 @@ export function RoomProjector({
           uTransitionProgress: { value: 0.0 },
           uTime: { value: 0.0 },
           uOpacity: { value: 1.0 },
-          uExposure: { value: 2.0 },
+          uExposure: { value: 1.2 },
         },
         vertexShader: `
-        varying vec3 vWorldPosition;
-        varying vec3 vNormal;
-        varying vec2 vUv;
-        
-        void main() {
-          vWorldPosition = (modelMatrix * vec4(position, 1.0)).xyz;
-          vNormal = normalize(normalMatrix * normal);
-          vUv = uv;
-          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-        }
-      `,
+          varying vec3 vWorldPosition;
+          varying vec3 vNormal;
+          varying vec2 vUv;
+
+          void main() {
+            vWorldPosition = (modelMatrix * vec4(position, 1.0)).xyz;
+            vNormal = normalize(normalMatrix * normal);
+            vUv = uv;
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+          }
+        `,
         fragmentShader: `
-        varying vec3 vWorldPosition;
-        varying vec3 vNormal;
-        varying vec2 vUv;
-        
-        uniform sampler2D tEquirect;
-        uniform vec3 uHdriCapturePoint;
-        uniform sampler2D tEquirectNext;
-        uniform vec3 uHdriCapturePointNext;
-        uniform float uTransitionProgress;
-        uniform float uTime;
-        uniform float uOpacity;
-        uniform float uExposure;
-        
-        const float PI = 3.141592653589793;
+          varying vec3 vWorldPosition;
+          varying vec3 vNormal;
+          varying vec2 vUv;
 
-        // Simple tone mapping function
-        vec3 aces(vec3 x) {
-          const float a = 2.51;
-          const float b = 0.03;
-          const float c = 2.43;
-          const float d = 0.59;
-          const float e = 0.14;
-          return clamp((x * (a * x + b)) / (x * (c * x + d) + e), 0.0, 1.0);
-        }
+          uniform sampler2D tEquirect;
+          uniform vec3 uHdriCapturePoint;
+          uniform sampler2D tEquirectNext;
+          uniform vec3 uHdriCapturePointNext;
+          uniform float uTransitionProgress;
+          uniform float uTime;
+          uniform float uOpacity;
+          uniform float uExposure;
 
-        // Calculates the color for a fragment from a given texture and capture point
-        vec3 getColorFromEquirect(sampler2D tex, vec3 capturePoint) {
-            vec3 direction = normalize(vWorldPosition - capturePoint);
-            vec2 uv = vec2(
-                atan(direction.z, direction.x) / (2.0 * PI) + 0.5,
-                asin(direction.y) / PI + 0.5
-            );
-            vec3 color = texture2D(tex, uv).rgb;
-            
-            // Apply exposure
-            color *= uExposure;
-            
-            // Apply tone mapping to prevent over-bright areas
-            color = aces(color);
-            
-            return color;
-        }
+          const float PI = 3.141592653589793;
 
-        // Enhanced blending with smooth falloff
-        vec3 smoothBlend(vec3 color1, vec3 color2, float progress) {
-            // Smooth step for more natural transition
-            float smoothProgress = smoothstep(0.0, 1.0, progress);
-            return mix(color1, color2, smoothProgress);
-        }
+          vec3 aces(vec3 x) {
+            const float a = 2.51;
+            const float b = 0.03;
+            const float c = 2.43;
+            const float d = 0.59;
+            const float e = 0.14;
+            return clamp((x * (a * x + b)) / (x * (c * x + d) + e), 0.0, 1.0);
+          }
 
-        void main() {
-          vec3 color1 = getColorFromEquirect(tEquirect, uHdriCapturePoint);
-          vec3 color2 = getColorFromEquirect(tEquirectNext, uHdriCapturePointNext);
+          vec3 getColorFromEquirect(sampler2D tex, vec3 capturePoint) {
+              vec3 direction = normalize(vWorldPosition - capturePoint);
+              vec2 uv = vec2(
+                  atan(direction.z, direction.x) / (2.0 * PI) + 0.5,
+                  asin(direction.y) / PI + 0.5
+              );
+              vec3 color = texture2D(tex, uv).rgb;
+              color *= uExposure;
+              color = aces(color);
+              return color;
+          }
 
-          // Enhanced blending with smooth transitions
-          vec3 finalColor = smoothBlend(color1, color2, uTransitionProgress);
-          
-          // Reduce the distance-based brightness variation (was too aggressive)
-          float distanceFromCenter = length(vWorldPosition - uHdriCapturePoint);
-          float brightness = 1.0 - (distanceFromCenter * 0.005); // Reduced from 0.01
-          brightness = clamp(brightness, 0.95, 1.0); // Less aggressive range
-          
-          finalColor *= brightness;
+          vec3 smoothBlend(vec3 color1, vec3 color2, float progress) {
+              float smoothProgress = smoothstep(0.0, 1.0, progress);
+              return mix(color1, color2, smoothProgress);
+          }
 
-          gl_FragColor = vec4(finalColor, uOpacity);
-        }
-      `,
+          void main() {
+            vec3 color1 = getColorFromEquirect(tEquirect, uHdriCapturePoint);
+            vec3 color2 = getColorFromEquirect(tEquirectNext, uHdriCapturePointNext);
+            vec3 finalColor = smoothBlend(color1, color2, uTransitionProgress);
+
+            float distanceFromCenter = length(vWorldPosition - uHdriCapturePoint);
+            float brightness = 1.0 - (distanceFromCenter * 0.005);
+            brightness = clamp(brightness, 0.95, 1.0);
+            finalColor *= brightness;
+
+            gl_FragColor = vec4(finalColor, uOpacity);
+          }
+        `,
         transparent: true,
       }),
     []
   );
 
+  // Update material uniforms
   sharedMaterial.uniforms.tEquirect.value = currentHdriMap;
   sharedMaterial.uniforms.uHdriCapturePoint.value = currentStop.position;
   sharedMaterial.uniforms.tEquirectNext.value = nextHdriMap;
   sharedMaterial.uniforms.uHdriCapturePointNext.value = nextStop
     ? nextStop.position
     : currentStop.position;
-  sharedMaterial.uniforms.uTransitionProgress.value = transitionProgress;
+  sharedMaterial.uniforms.uTransitionProgress.value = isHdriLoaded
+    ? transitionProgress
+    : 0;
   sharedMaterial.uniforms.uTime.value = performance.now() * 0.001;
-  sharedMaterial.uniforms.uExposure.value = 1.2; // Adjust this value to brighten/darken
+  sharedMaterial.uniforms.uExposure.value = 1.2;
 
-  // Handle mesh click events
   const handleMeshClick = (event) => {
     if (onMeshClick) {
       const point = event.point;
@@ -185,15 +190,16 @@ export function RoomProjector({
 
   return (
     <group name="room-projector">
-      {tourStops.map((stop) => (
-        <RoomMesh
-          key={stop.id}
-          meshPath={stop.meshPath}
-          material={sharedMaterial}
-          position={stop.position}
-          onClick={handleMeshClick}
-        />
-      ))}
+      {isHdriLoaded &&
+        tourStops.map((stop) => (
+          <RoomMesh
+            key={stop.id}
+            meshPath={stop.meshPath}
+            material={sharedMaterial}
+            position={stop.position}
+            onClick={handleMeshClick}
+          />
+        ))}
     </group>
   );
 }
