@@ -50,6 +50,7 @@ const NavigationHotspot = ({
   targetStopId,
   onTransition,
   isVisible,
+  cursorstate,
 }) => {
   const [hovered, setHovered] = useState(false);
   const meshRef = useRef();
@@ -80,20 +81,28 @@ const NavigationHotspot = ({
         rotation={[-Math.PI / 2, 0, 0]}
         ref={meshRef}
         onClick={() => onTransition(targetStopId)}
-        onPointerOver={() => setHovered(true)}
-        onPointerOut={() => setHovered(false)}>
+        onPointerOver={() => {
+          setHovered(true);
+          cursorstate(false);
+        }}
+        onPointerOut={() => {
+          setHovered(false);
+          cursorstate(true);
+        }}>
         <ringGeometry args={[0, 0.075, 32]} />
         <meshBasicMaterial color={0x007fff} transparent={true} opacity={0.8} />
       </mesh>
 
-      <mesh rotation={[-Math.PI / 2, 0, 0]}>
+      <mesh
+        rotation={[-Math.PI / 2, 0, 0]}
+        onPointerOver={() => {
+          cursorstate(false);
+        }}
+        onPointerOut={() => {
+          cursorstate(true);
+        }}>
         <ringGeometry args={[0.08, 0.12, 32]} />
-        <meshBasicMaterial
-          color={0x007fff}
-          transparent={true}
-          opacity={0.4}
-          side={THREE.DoubleSide}
-        />
+        <meshBasicMaterial color={0x007fff} transparent={true} opacity={0.4} />
       </mesh>
 
       {/* Label */}
@@ -111,13 +120,19 @@ const Scene = () => {
   const [nextStopIndex, setNextStopIndex] = useState(null);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [transitionProgress, setTransitionProgress] = useState(0);
-  const [isHdriLoaded, setIsHdriLoaded] = useState(false);
 
   const [cursorInfo, setCursorInfo] = useState({
     position: new THREE.Vector3(),
     normal: new THREE.Vector3(),
     visible: true,
   });
+
+  const setCursorVisibility = (state) => {
+    setCursorInfo((prev) => ({
+      ...prev,
+      visible: state,
+    }));
+  };
 
   const controlsRef = useRef(null);
   const transitionDataRef = useRef(null);
@@ -163,11 +178,13 @@ const Scene = () => {
       if (intersects.length > 0) {
         const intersection = intersects[0];
 
-        setCursorInfo({
-          ...cursorInfo,
+        // FIX: Use the functional update to preserve the current visible state
+        setCursorInfo((prev) => ({
+          ...prev,
           position: intersection.point,
           normal: intersection.normal,
-        });
+          // Don't override the visible property - keep the current value
+        }));
       }
     };
 
@@ -256,11 +273,11 @@ const Scene = () => {
         setNextStopIndex(null);
         setTransitionProgress(0);
         setIsTransitioning(false);
-        setCursorInfo({ ...cursorInfo, visible: true });
+        setCursorVisibility(true);
         transitionDataRef.current = null;
       },
       onStart: () => {
-        setCursorInfo({ ...cursorInfo, visible: false });
+        setCursorVisibility(false);
       },
     });
 
@@ -327,6 +344,7 @@ const Scene = () => {
               position={stop.hotspotPosition || stop.position}
               targetStopId={stop.id}
               onTransition={handleTransition}
+              cursorstate={setCursorVisibility}
               isVisible={true}
             />
           );
