@@ -1,18 +1,107 @@
 import { useState, useRef, useEffect } from "react";
-import { Canvas, useFrame } from "@react-three/fiber";
-import { OrbitControls, Html } from "@react-three/drei";
+import { Canvas, useFrame, useThree } from "@react-three/fiber";
+import { OrbitControls, Html, Text } from "@react-three/drei";
 import * as THREE from "three";
-import { tourStops } from "../tourData";
+import { tourStops, tourConfig } from "../tourData";
 import { gsap } from "gsap";
 import { RoomProjector } from "./RoomProjector";
 
-const Hotspot = ({ position, onClick, label }) => {
+const MouseCursorRing = ({ position, normal, visible }) => {
+  const ringRef = useRef();
+
+  useFrame(() => {
+    if (ringRef.current && visible) {
+      // Gentle pulsing animation
+      const time = Date.now() * tourConfig.animation.hotspotPulseSpeed;
+      const scale = 1 + Math.sin(time) * 0.1;
+      ringRef.current.scale.setScalar(scale);
+    }
+  });
+
+  if (!visible || !position) return null;
+
+  // Calculate rotation to align with surface normal
+  const quaternion = new THREE.Quaternion();
+  if (normal) {
+    const up = new THREE.Vector3(0, 0, 1);
+    quaternion.setFromUnitVectors(up, normal.clone().normalize());
+  }
+
+  const minifiedNormal = normal.multiplyScalar(0.01);
+  const finalPosition = position.add(minifiedNormal);
+
   return (
-    <Html position={position}>
-      <div className="hotspot" onClick={onClick}>
-        <div className="hotspot-label">{label}</div>
-      </div>
-    </Html>
+    <group position={position} quaternion={quaternion}>
+      <mesh ref={ringRef}>
+        <ringGeometry args={[0.08, 0.12, 32]} />
+        <meshBasicMaterial
+          color={0x007fff}
+          transparent={true}
+          opacity={0.6}
+          side={THREE.DoubleSide}
+        />
+      </mesh>
+    </group>
+  );
+};
+
+const NavigationHotspot = ({
+  position,
+  targetStopId,
+  onTransition,
+  isVisible,
+}) => {
+  const [hovered, setHovered] = useState(false);
+  const meshRef = useRef();
+  const targetStop = tourStops.find((stop) => stop.id === targetStopId);
+
+  useFrame(() => {
+    if (meshRef.current) {
+      // Gentle pulsing animation
+      const time = Date.now() * 0.003;
+      const scale = 1 + Math.sin(time) * 0.1;
+      meshRef.current.scale.setScalar(scale);
+
+      // Hover effect
+      if (hovered) {
+        meshRef.current.material.color.setHex(0x4a90e2);
+      } else {
+        meshRef.current.material.color.setHex(0x007fff);
+      }
+    }
+  });
+
+  if (!isVisible) return null;
+
+  return (
+    <group position={position}>
+      {/* Clickable hotspot sphere */}
+      <mesh
+        ref={meshRef}
+        onClick={() => onTransition(targetStopId)}
+        onPointerOver={() => setHovered(true)}
+        onPointerOut={() => setHovered(false)}>
+        <sphereGeometry args={[0.05, 16, 16]} />
+        <meshBasicMaterial color={0x007fff} transparent={true} opacity={0.8} />
+      </mesh>
+
+      <mesh rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[0.08, 0.12, 32]} />
+        <meshBasicMaterial
+          color={0x007fff}
+          transparent={true}
+          opacity={0.4}
+          side={THREE.DoubleSide}
+        />
+      </mesh>
+
+      {/* Label */}
+      <Html position={[0, 0.1, 0]} center>
+        <div className="hotspot-label">
+          {targetStop?.name || `Stop ${targetStopId}`}
+        </div>
+      </Html>
+    </group>
   );
 };
 
@@ -21,9 +110,18 @@ const Scene = () => {
   const [nextStopIndex, setNextStopIndex] = useState(null);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [transitionProgress, setTransitionProgress] = useState(0);
+  const [cursorInfo, setCursorInfo] = useState({
+    position: new THREE.Vector3(),
+    normal: new THREE.Vector3(),
+    visible: true,
+  });
 
   const controlsRef = useRef(null);
-  const transitionDataRef = useRef(null); // Store transition interpolation data
+  const transitionDataRef = useRef(null);
+  const raycaster = useRef(new THREE.Raycaster());
+  const mouse = useRef(new THREE.Vector2());
+
+  const { camera, scene, gl } = useThree();
 
   useEffect(() => {
     if (controlsRef.current && tourStops.length > 1) {
@@ -42,6 +140,42 @@ const Scene = () => {
     }
   }, []);
 
+  useEffect(() => {
+    const handleMouseMove = (event) => {
+      // Update mouse coordinates for raycasting
+      mouse.current.x = (event.clientX / window.innerWidth) * 2 - 1;
+      mouse.current.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+      if (isTransitioning) return;
+
+      // Update raycaster
+      raycaster.current.setFromCamera(mouse.current, camera);
+
+      // Find intersection with room geometry
+      const intersects = raycaster.current.intersectObjects(
+        scene.children,
+        true
+      );
+
+      if (intersects.length > 0) {
+        const intersection = intersects[0];
+
+        setCursorInfo({
+          ...cursorInfo,
+          position: intersection.point,
+          normal: intersection.normal,
+        });
+      }
+    };
+
+    const canvas = gl.domElement;
+    canvas.addEventListener("mousemove", handleMouseMove);
+
+    return () => {
+      canvas.removeEventListener("mousemove", handleMouseMove);
+    };
+  }, [camera, scene, gl, isTransitioning]);
+
   useFrame(() => {
     if (!controlsRef.current) return;
 
@@ -49,14 +183,11 @@ const Scene = () => {
     const controls = controlsRef.current;
 
     if (isTransitioning && transitionDataRef.current) {
-      // During transition, smoothly interpolate both position and target
       const { startPosition, endPosition, startTarget, endTarget, progress } =
         transitionDataRef.current;
 
-      // Smooth interpolation using easing
-      const easeProgress = 1 - Math.pow(1 - progress, 3); // Cubic ease-out for smoother feeling
+      const easeProgress = 1 - Math.pow(1 - progress, 3);
 
-      // Interpolate camera position
       const currentPos = new THREE.Vector3().lerpVectors(
         startPosition,
         endPosition,
@@ -64,7 +195,6 @@ const Scene = () => {
       );
       camera.position.copy(currentPos);
 
-      // Interpolate camera target for smooth rotation
       const currentTarget = new THREE.Vector3().lerpVectors(
         startTarget,
         endTarget,
@@ -73,7 +203,6 @@ const Scene = () => {
       controls.target.copy(currentTarget);
       controls.update();
     } else if (!isTransitioning) {
-      // During idle "look around" state, keep the target just in front of the camera.
       const lookDirection = new THREE.Vector3();
       camera.getWorldDirection(lookDirection);
 
@@ -81,7 +210,6 @@ const Scene = () => {
         .copy(camera.position)
         .add(lookDirection.multiplyScalar(0.01));
 
-      // Use a gentle lerp to avoid any potential snapping from user input.
       controls.target.lerp(newTarget, 0.1);
       controls.update();
     }
@@ -100,11 +228,9 @@ const Scene = () => {
     const controls = controlsRef.current;
     const camera = controls.object;
 
-    // Capture the current camera state
     const startPosition = camera.position.clone();
     const startTarget = controls.target.clone();
 
-    // Calculate the end target - look towards the destination
     const directionToDestination = new THREE.Vector3()
       .subVectors(toStop.position, fromStop.position)
       .normalize();
@@ -113,7 +239,6 @@ const Scene = () => {
       .copy(toStop.position)
       .add(directionToDestination.multiplyScalar(0.01));
 
-    // Store transition data for useFrame
     transitionDataRef.current = {
       startPosition: startPosition,
       endPosition: toStop.position.clone(),
@@ -122,34 +247,35 @@ const Scene = () => {
       progress: 0,
     };
 
-    // Create animation timeline
     const tl = gsap.timeline({
       onComplete: () => {
         setCurrentStopIndex(toStop.id);
         setNextStopIndex(null);
         setTransitionProgress(0);
         setIsTransitioning(false);
+        setCursorInfo({ ...cursorInfo, visible: true });
         transitionDataRef.current = null;
+      },
+      onStart: () => {
+        setCursorInfo({ ...cursorInfo, visible: false });
       },
     });
 
-    // Animate the progress value that useFrame will use for interpolation
     tl.to(
       transitionDataRef.current,
       {
         progress: 1,
-        duration: 2.0, // Slightly longer for smoother feeling
+        duration: tourConfig.animation.transitionDuration,
         ease: "power2.inOut",
       },
       0
     );
 
-    // Animate the shader blend factor separately
     tl.to(
       { value: 0 },
       {
         value: 1,
-        duration: 2.0,
+        duration: tourConfig.animation.transitionDuration,
         ease: "power2.inOut",
         onUpdate: function () {
           setTransitionProgress(this.targets()[0].value);
@@ -161,7 +287,6 @@ const Scene = () => {
 
   const currentStop = tourStops[currentStopIndex];
   const nextStop = nextStopIndex !== null ? tourStops[nextStopIndex] : null;
-  const displayedStops = tourStops.filter((s) => s.id !== currentStop.id);
 
   return (
     <>
@@ -183,15 +308,26 @@ const Scene = () => {
         transitionProgress={transitionProgress}
       />
 
+      <MouseCursorRing
+        position={cursorInfo.position}
+        normal={cursorInfo.normal}
+        visible={cursorInfo.visible}
+      />
+
       {!isTransitioning &&
-        displayedStops.map((stop) => (
-          <Hotspot
-            key={stop.id}
-            position={stop.position}
-            label={stop.name}
-            onClick={() => handleTransition(stop.id)}
-          />
-        ))}
+        tourStops.map((stop) => {
+          if (stop.id === currentStopIndex) return null;
+
+          return (
+            <NavigationHotspot
+              key={stop.id}
+              position={stop.hotspotPosition || stop.position}
+              targetStopId={stop.id}
+              onTransition={handleTransition}
+              isVisible={true}
+            />
+          );
+        })}
     </>
   );
 };
@@ -200,10 +336,16 @@ export const VirtualTour = () => {
   const initialPos = tourStops[0].position;
 
   return (
-    <div style={{ width: "100vw", height: "100vh" }}>
-      <Canvas camera={{ position: initialPos, fov: 55 }}>
+    <div style={{ width: "100vw", height: "100vh", position: "relative" }}>
+      <Canvas camera={{ position: initialPos, fov: 75 }}>
         <Scene />
       </Canvas>
+
+      {/* Loading indicator */}
+      <div className="loading-indicator" style={{ display: "none" }}>
+        <div className="loading-spinner"></div>
+        <p>Loading next view...</p>
+      </div>
     </div>
   );
 };
