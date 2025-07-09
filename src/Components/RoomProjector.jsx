@@ -65,7 +65,6 @@ export function RoomProjector({
   // Wait for both HDRIs to load
   useEffect(() => {
     if (currentHdriMap?.image && nextHdriMap?.image) {
-      console.log("✅ HDRIs loaded:", currentStop.hdriPath, nextStop?.hdriPath);
       setIsHdriLoaded(true);
     } else {
       console.warn("❌ HDRI not fully loaded");

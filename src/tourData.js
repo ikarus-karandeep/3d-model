@@ -213,19 +213,11 @@ export const tourStops = [
 ];
 
 export const tourConfig = {
-  // UI settings
-  ui: {
-    showCompass: false,
-    showProgress: false,
-    showCrosshair: false,
-    hotspotStyle: "modern", // "modern" | "classic" | "minimal"
-  },
-
   // Animation settings
   animation: {
-    transitionDuration: 2.0,
+    transitionDuration: 1.5,
     hotspotPulseSpeed: 0.003,
-    uiWidgetFadeIn: 0.3,
+    easeType: "power2.inOut",
   },
 
   // Interaction settings
@@ -237,10 +229,10 @@ export const tourConfig = {
 
   // Camera settings
   camera: {
-    fov: 55,
-    minPolarAngle: Math.PI / 4,
-    maxPolarAngle: Math.PI - Math.PI / 4,
+    fov: 65,
+    minPolarAngle: Math.PI / 10,
+    maxPolarAngle: Math.PI - Math.PI / 10,
     damping: true,
-    dampingFactor: 0.05,
+    dampingFactor: 0.1,
   },
 };

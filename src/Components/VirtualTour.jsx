@@ -58,7 +58,7 @@ const NavigationHotspot = ({
   useFrame(() => {
     if (meshRef.current) {
       // Gentle pulsing animation
-      const time = Date.now() * 0.003;
+      const time = Date.now() * tourConfig.animation.hotspotPulseSpeed;
       const scale = 1 + Math.sin(time) * 0.1;
       meshRef.current.scale.setScalar(scale);
 
@@ -77,11 +77,12 @@ const NavigationHotspot = ({
     <group position={position}>
       {/* Clickable hotspot sphere */}
       <mesh
+        rotation={[-Math.PI / 2, 0, 0]}
         ref={meshRef}
         onClick={() => onTransition(targetStopId)}
         onPointerOver={() => setHovered(true)}
         onPointerOut={() => setHovered(false)}>
-        <sphereGeometry args={[0.05, 16, 16]} />
+        <ringGeometry args={[0, 0.075, 32]} />
         <meshBasicMaterial color={0x007fff} transparent={true} opacity={0.8} />
       </mesh>
 
@@ -110,6 +111,8 @@ const Scene = () => {
   const [nextStopIndex, setNextStopIndex] = useState(null);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [transitionProgress, setTransitionProgress] = useState(0);
+  const [isHdriLoaded, setIsHdriLoaded] = useState(false);
+
   const [cursorInfo, setCursorInfo] = useState({
     position: new THREE.Vector3(),
     normal: new THREE.Vector3(),
@@ -266,7 +269,7 @@ const Scene = () => {
       {
         progress: 1,
         duration: tourConfig.animation.transitionDuration,
-        ease: "power2.inOut",
+        ease: tourConfig.animation.easeType,
       },
       0
     );
@@ -276,7 +279,7 @@ const Scene = () => {
       {
         value: 1,
         duration: tourConfig.animation.transitionDuration,
-        ease: "power2.inOut",
+        ease: tourConfig.animation.easeType,
         onUpdate: function () {
           setTransitionProgress(this.targets()[0].value);
         },
@@ -295,10 +298,10 @@ const Scene = () => {
         enablePan={false}
         enableZoom={false}
         enabled={!isTransitioning}
-        minPolarAngle={Math.PI / 4}
-        maxPolarAngle={Math.PI - Math.PI / 4}
-        enableDamping={true}
-        dampingFactor={0.05}
+        minPolarAngle={tourConfig.camera.minPolarAngle}
+        maxPolarAngle={tourConfig.camera.maxPolarAngle}
+        enableDamping={tourConfig.camera.damping}
+        dampingFactor={tourConfig.camera.dampingFactor}
       />
 
       <RoomProjector
@@ -337,7 +340,7 @@ export const VirtualTour = () => {
 
   return (
     <div style={{ width: "100vw", height: "100vh", position: "relative" }}>
-      <Canvas camera={{ position: initialPos, fov: 75 }}>
+      <Canvas camera={{ position: initialPos, fov: tourConfig.camera.fov }}>
         <Scene />
       </Canvas>
 
