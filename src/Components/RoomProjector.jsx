@@ -25,12 +25,6 @@ function RoomMesh({ meshPath, material, position, onClick }) {
       material={material}
       position={position}
       onClick={onClick}
-      onPointerMove={() => {
-        document.body.style.cursor = "crosshair";
-      }}
-      onPointerLeave={() => {
-        document.body.style.cursor = "default";
-      }}
     />
   );
 }

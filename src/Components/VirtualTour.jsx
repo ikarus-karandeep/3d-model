@@ -11,7 +11,6 @@ const MouseCursorRing = ({ position, normal, visible }) => {
 
   useFrame(() => {
     if (ringRef.current && visible) {
-      // Gentle pulsing animation
       const time = Date.now() * tourConfig.animation.hotspotPulseSpeed;
       const scale = 1 + Math.sin(time) * 0.1;
       ringRef.current.scale.setScalar(scale);
@@ -20,7 +19,6 @@ const MouseCursorRing = ({ position, normal, visible }) => {
 
   if (!visible || !position) return null;
 
-  // Calculate rotation to align with surface normal
   const quaternion = new THREE.Quaternion();
   if (normal) {
     const up = new THREE.Vector3(0, 0, 1);
@@ -51,6 +49,7 @@ const NavigationHotspot = ({
   onTransition,
   isVisible,
   cursorstate,
+  isNotOccluded = true,
 }) => {
   const [hovered, setHovered] = useState(false);
   const meshRef = useRef();
@@ -58,12 +57,10 @@ const NavigationHotspot = ({
 
   useFrame(() => {
     if (meshRef.current) {
-      // Gentle pulsing animation
       const time = Date.now() * tourConfig.animation.hotspotPulseSpeed;
       const scale = 1 + Math.sin(time) * 0.1;
       meshRef.current.scale.setScalar(scale);
 
-      // Hover effect
       if (hovered) {
         meshRef.current.material.color.setHex(0x4a90e2);
       } else {
@@ -88,13 +85,15 @@ const NavigationHotspot = ({
         onPointerOut={() => {
           setHovered(false);
           cursorstate(true);
-        }}>
+        }}
+        userData={{ isHotspot: true }}>
         <ringGeometry args={[0, 0.075, 32]} />
         <meshBasicMaterial color={0x007fff} transparent={true} opacity={0.8} />
       </mesh>
 
       <mesh
         rotation={[-Math.PI / 2, 0, 0]}
+        userData={{ isHotspot: true }}
         onPointerOver={() => {
           cursorstate(false);
         }}
@@ -105,12 +104,14 @@ const NavigationHotspot = ({
         <meshBasicMaterial color={0x007fff} transparent={true} opacity={0.4} />
       </mesh>
 
-      {/* Label */}
-      <Html position={[0, 0.1, 0]} center>
-        <div className="hotspot-label">
-          {targetStop?.name || `Stop ${targetStopId}`}
-        </div>
-      </Html>
+      {/* Label - only show when hotspot is not occluded */}
+      {isNotOccluded && (
+        <Html position={[0, 0.1, 0]} center>
+          <div className="hotspot-label">
+            {targetStop?.name || `Stop ${targetStopId}`}
+          </div>
+        </Html>
+      )}
     </group>
   );
 };
@@ -120,6 +121,7 @@ const Scene = () => {
   const [nextStopIndex, setNextStopIndex] = useState(null);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [transitionProgress, setTransitionProgress] = useState(0);
+  const [hotspotVisibility, setHotspotVisibility] = useState({});
 
   const [cursorInfo, setCursorInfo] = useState({
     position: new THREE.Vector3(),
@@ -141,6 +143,51 @@ const Scene = () => {
 
   const { camera, scene, gl } = useThree();
 
+  const checkHotspotOcclusion = () => {
+    const visibility = {};
+
+    tourStops.forEach((stop) => {
+      if (stop.id === currentStopIndex) {
+        visibility[stop.id] = true;
+        return;
+      }
+
+      const hotspotPosition = stop.hotspotPosition || stop.position;
+
+      const direction = new THREE.Vector3().subVectors(
+        hotspotPosition,
+        camera.position
+      );
+      const distance = direction.length();
+      direction.normalize();
+
+      raycaster.current.set(camera.position, direction);
+
+      const intersects = raycaster.current.intersectObjects(
+        scene.children,
+        true
+      );
+
+      let occluded = false;
+      for (let i = 0; i < intersects.length; i++) {
+        const intersection = intersects[i];
+
+        if (intersection.object.userData.isHotspot) {
+          continue;
+        }
+
+        if (intersection.distance < distance - 0.1) {
+          occluded = true;
+          break;
+        }
+      }
+
+      visibility[stop.id] = !occluded;
+    });
+
+    setHotspotVisibility(visibility);
+  };
+
   useEffect(() => {
     if (controlsRef.current && tourStops.length > 1) {
       const controls = controlsRef.current;
@@ -155,21 +202,20 @@ const Scene = () => {
 
       controls.target.copy(initialTarget);
       controls.update();
+
+      setTimeout(() => checkHotspotOcclusion(), 100);
     }
   }, []);
 
   useEffect(() => {
     const handleMouseMove = (event) => {
-      // Update mouse coordinates for raycasting
       mouse.current.x = (event.clientX / window.innerWidth) * 2 - 1;
       mouse.current.y = -(event.clientY / window.innerHeight) * 2 + 1;
 
       if (isTransitioning) return;
 
-      // Update raycaster
       raycaster.current.setFromCamera(mouse.current, camera);
 
-      // Find intersection with room geometry
       const intersects = raycaster.current.intersectObjects(
         scene.children,
         true
@@ -178,12 +224,10 @@ const Scene = () => {
       if (intersects.length > 0) {
         const intersection = intersects[0];
 
-        // FIX: Use the functional update to preserve the current visible state
         setCursorInfo((prev) => ({
           ...prev,
           position: intersection.point,
           normal: intersection.normal,
-          // Don't override the visible property - keep the current value
         }));
       }
     };
@@ -275,6 +319,8 @@ const Scene = () => {
         setIsTransitioning(false);
         setCursorVisibility(true);
         transitionDataRef.current = null;
+
+        setTimeout(() => checkHotspotOcclusion(), 100);
       },
       onStart: () => {
         setCursorVisibility(false);
@@ -346,6 +392,7 @@ const Scene = () => {
               onTransition={handleTransition}
               cursorstate={setCursorVisibility}
               isVisible={true}
+              isNotOccluded={hotspotVisibility[stop.id] !== false}
             />
           );
         })}
@@ -361,12 +408,6 @@ export const VirtualTour = () => {
       <Canvas camera={{ position: initialPos, fov: tourConfig.camera.fov }}>
         <Scene />
       </Canvas>
-
-      {/* Loading indicator */}
-      <div className="loading-indicator" style={{ display: "none" }}>
-        <div className="loading-spinner"></div>
-        <p>Loading next view...</p>
-      </div>
     </div>
   );
 };

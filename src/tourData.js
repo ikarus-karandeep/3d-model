@@ -13,7 +13,7 @@ export const tourStops = [
     ),
     hotspotPosition: new THREE.Vector3(
       -1.6115844249725342,
-      0.1,
+      0.2,
       1.4716463088989258
     ),
     description: "Temporary Description",
@@ -32,7 +32,7 @@ export const tourStops = [
     ),
     hotspotPosition: new THREE.Vector3(
       0.295840859413147,
-      0.1,
+      0.2,
       1.4640165567398071
     ),
     description: "Temporary Description",
@@ -51,7 +51,7 @@ export const tourStops = [
     ),
     hotspotPosition: new THREE.Vector3(
       -1.870994210243225,
-      0.1,
+      0.2,
       -0.46629810333251953
     ),
     description: "Temporary Description",
@@ -70,7 +70,7 @@ export const tourStops = [
     ),
     hotspotPosition: new THREE.Vector3(
       -0.9325409531593323,
-      0.1,
+      0.2,
       -1.687050461769104
     ),
     description: "Temporary Description",
@@ -89,7 +89,7 @@ export const tourStops = [
     ),
     hotspotPosition: new THREE.Vector3(
       -0.9783191680908203,
-      0.1,
+      0.2,
       -3.579216480255127
     ),
     description: "Temporary Description",
@@ -108,7 +108,7 @@ export const tourStops = [
     ),
     hotspotPosition: new THREE.Vector3(
       -3.007819652557373,
-      0.1,
+      0.2,
       -2.6789116859436035
     ),
     description: "Temporary Description",
@@ -127,7 +127,7 @@ export const tourStops = [
     ),
     hotspotPosition: new THREE.Vector3(
       -4.823688507080078,
-      0.1,
+      0.2,
       -2.717060089111328
     ),
     description: "Temporary Description",
@@ -146,7 +146,7 @@ export const tourStops = [
     ),
     hotspotPosition: new THREE.Vector3(
       -3.4884908199310303,
-      0.1,
+      0.2,
       -0.9698584079742432
     ),
     description: "Temporary Description",
@@ -165,7 +165,7 @@ export const tourStops = [
     ),
     hotspotPosition: new THREE.Vector3(
       -5.441694259643555,
-      0.1,
+      0.2,
       -1.1453415155410767
     ),
     description: "Temporary Description",
@@ -184,7 +184,7 @@ export const tourStops = [
     ),
     hotspotPosition: new THREE.Vector3(
       -3.6181955337524414,
-      0.1,
+      0.2,
       1.0596424341201782
     ),
     description: "Temporary Description",
@@ -203,7 +203,7 @@ export const tourStops = [
     ),
     hotspotPosition: new THREE.Vector3(
       -4.457462787628174,
-      0.1,
+      0.2,
       2.524545192718506
     ),
     description: "Temporary Description",
