@@ -219,8 +219,8 @@ export const tourConfig = {
   // Camera settings
   camera: {
     defaultFov: 75,
-    minFov: 45,
-    maxFov: 90,
+    minFov: 50,
+    maxFov: 80,
     minPolarAngle: Math.PI / 4,
     maxPolarAngle: Math.PI - Math.PI / 4,
     damping: true,
