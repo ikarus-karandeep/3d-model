@@ -56,7 +56,7 @@ const NavigationHotspot = ({
   const targetStop = tourStops.find((stop) => stop.id === targetStopId);
 
   useFrame(() => {
-    if (meshRef.current) {
+    if (meshRef.current && isVisible) { // Only animate if visible
       const time = Date.now() * tourConfig.animation.hotspotPulseSpeed;
       const scale = 1 + Math.sin(time) * 0.1;
       meshRef.current.scale.setScalar(scale);
@@ -146,49 +146,50 @@ const Scene = () => {
   const { camera, scene, gl } = useThree();
 
   const checkHotspotOcclusion = () => {
-    const visibility = {};
+  const visibility = {};
 
-    tourStops.forEach((stop) => {
-      if (stop.id === currentStopIndex) {
-        visibility[stop.id] = true;
-        return;
+  tourStops.forEach((stop) => {
+    if (stop.id === currentStopIndex) {
+      visibility[stop.id] = false; // Current stop hotspot should not be visible
+      return;
+    }
+
+    const hotspotPosition = stop.hotspotPosition || stop.position;
+
+    const direction = new THREE.Vector3().subVectors(
+      hotspotPosition,
+      camera.position
+    );
+    const distance = direction.length();
+    direction.normalize();
+
+    raycaster.current.set(camera.position, direction);
+    raycaster.current.far = distance; // Limit raycast to hotspot distance
+
+    const intersects = raycaster.current.intersectObjects(
+      scene.children,
+      true
+    );
+
+    let occluded = false;
+    for (let i = 0; i < intersects.length; i++) {
+      const intersection = intersects[i];
+
+      if (intersection.object.userData.isHotspot) {
+        continue;
       }
 
-      const hotspotPosition = stop.hotspotPosition || stop.position;
-
-      const direction = new THREE.Vector3().subVectors(
-        hotspotPosition,
-        camera.position
-      );
-      const distance = direction.length();
-      direction.normalize();
-
-      raycaster.current.set(camera.position, direction);
-
-      const intersects = raycaster.current.intersectObjects(
-        scene.children,
-        true
-      );
-
-      let occluded = false;
-      for (let i = 0; i < intersects.length; i++) {
-        const intersection = intersects[i];
-
-        if (intersection.object.userData.isHotspot) {
-          continue;
-        }
-
-        if (intersection.distance < distance - 0.1) {
-          occluded = true;
-          break;
-        }
+      if (intersection.distance < distance - 0.1) {
+        occluded = true;
+        break;
       }
+    }
 
-      visibility[stop.id] = !occluded;
-    });
+    visibility[stop.id] = !occluded;
+  });
 
-    setHotspotVisibility(visibility);
-  };
+  setHotspotVisibility(visibility);
+};
 
   useEffect(() => {
     if (controlsRef.current && tourStops.length > 1) {
@@ -308,82 +309,89 @@ const Scene = () => {
     }
   });
 
-  const handleTransition = (toStopId) => {
-    if (isTransitioning || !controlsRef.current) return;
+ const handleTransition = (toStopId) => {
+  if (isTransitioning || !controlsRef.current) return;
 
-    const fromStop = tourStops[currentStopIndex];
-    const toStop = tourStops.find((s) => s.id === toStopId);
-    if (!toStop || toStop.id === currentStopIndex) {
-      console.warn("Try to transition to Same stop. Aborting!!!");
-      return;
-    }
+  const fromStop = tourStops[currentStopIndex];
+  const toStop = tourStops.find((s) => s.id === toStopId);
+  if (!toStop || toStop.id === currentStopIndex) {
+    console.warn("Try to transition to same stop. Aborting!!!");
+    return;
+  }
 
-    setIsTransitioning(true);
-    setNextStopIndex(toStop.id);
+  // Check distance to prevent glitches for very close hotspots
+  const distance = fromStop.position.distanceTo(toStop.position);
+  if (distance < 0.1) { // Adjust threshold as needed
+    console.warn("Hotspot too close, aborting transition to prevent glitch");
+    return;
+  }
 
-    const controls = controlsRef.current;
-    const camera = controls.object;
+  setIsTransitioning(true);
+  setNextStopIndex(toStop.id);
 
-    const startPosition = camera.position.clone();
-    const startTarget = controls.target.clone();
+  const controls = controlsRef.current;
+  const camera = controls.object;
 
-    const directionToDestination = new THREE.Vector3()
-      .subVectors(toStop.position, fromStop.position)
-      .normalize();
+  const startPosition = camera.position.clone();
+  const startTarget = controls.target.clone();
 
-    const endTarget = new THREE.Vector3()
-      .copy(toStop.position)
-      .add(directionToDestination.multiplyScalar(0.01));
+  const directionToDestination = new THREE.Vector3()
+    .subVectors(toStop.position, fromStop.position)
+    .normalize();
 
-    transitionDataRef.current = {
-      startPosition: startPosition,
-      endPosition: toStop.position.clone(),
-      startTarget: startTarget,
-      endTarget: endTarget,
-      progress: 0,
-    };
+  const endTarget = new THREE.Vector3()
+    .copy(toStop.position)
+    .add(directionToDestination.multiplyScalar(0.01));
 
-    const tl = gsap.timeline({
-      onComplete: () => {
-        setCurrentStopIndex(toStop.id);
-        setNextStopIndex(null);
-        setTransitionProgress(0);
-        setIsTransitioning(false);
-        setCursorVisibility(true);
-        transitionDataRef.current = null;
-
-       requestAnimationFrame(() => {
-    checkHotspotOcclusion();
-  });
-      },
-      onStart: () => {
-        setCursorVisibility(false);
-      },
-    });
-
-    tl.to(
-      transitionDataRef.current,
-      {
-        progress: 1,
-        duration: tourConfig.animation.transitionDuration,
-        ease: tourConfig.animation.easeType,
-      },
-      0
-    );
-
-    tl.to(
-      { value: 0 },
-      {
-        value: 1,
-        duration: tourConfig.animation.transitionDuration,
-        ease: tourConfig.animation.easeType,
-        onUpdate: function () {
-          setTransitionProgress(this.targets()[0].value);
-        },
-      },
-      0
-    );
+  transitionDataRef.current = {
+    startPosition,
+    endPosition: toStop.position.clone(),
+    startTarget,
+    endTarget,
+    progress: 0,
   };
+
+  const tl = gsap.timeline({
+    onComplete: () => {
+      setCurrentStopIndex(toStop.id);
+      setNextStopIndex(null);
+      setTransitionProgress(0);
+      setIsTransitioning(false);
+      setCursorVisibility(true);
+      transitionDataRef.current = null;
+
+      requestAnimationFrame(() => {
+        checkHotspotOcclusion();
+      });
+    },
+    onStart: () => {
+      setCursorVisibility(false);
+    },
+  });
+
+  tl.to(
+    transitionDataRef.current,
+    {
+      progress: 1,
+      duration: tourConfig.animation.transitionDuration,
+      ease: tourConfig.animation.easeType,
+    },
+    0
+  );
+
+  tl.to(
+    { value: 0 },
+    {
+      value: 1,
+      duration: tourConfig.animation.transitionDuration,
+      ease: tourConfig.animation.easeType,
+      onUpdate: function () {
+        setTransitionProgress(this.targets()[0].value);
+      },
+    },
+    0
+  );
+};
 
   const currentStop = tourStops[currentStopIndex];
   const nextStop = nextStopIndex !== null ? tourStops[nextStopIndex] : null;
@@ -418,21 +426,24 @@ const Scene = () => {
       />
 
       {!isTransitioning &&
-        tourStops.map((stop) => {
-          if (stop.id === currentStopIndex) return null;
+  tourStops.map((stop) => {
+    if (stop.id === currentStopIndex) return null;
 
-          return (
-            <NavigationHotspot
-              key={stop.id}
-              position={stop.hotspotPosition || stop.position}
-              targetStopId={stop.id}
-              onTransition={handleTransition}
-              cursorstate={setCursorVisibility}
-              isVisible={true}
-              isNotOccluded={hotspotVisibility[stop.id] !== false}
-            />
-          );
-        })}
+    // Only render if the hotspot is visible (not occluded)
+    if (hotspotVisibility[stop.id] === false) return null;
+
+    return (
+      <NavigationHotspot
+        key={stop.id}
+        position={stop.hotspotPosition || stop.position}
+        targetStopId={stop.id}
+        onTransition={handleTransition}
+        cursorstate={setCursorVisibility}
+        isVisible={hotspotVisibility[stop.id] !== false} // Use hotspotVisibility
+        isNotOccluded={hotspotVisibility[stop.id] !== false}
+      />
+    );
+  })}
     </>
   );
 };
