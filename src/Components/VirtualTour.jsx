@@ -143,8 +143,10 @@ const Scene = () => {
   const mouse = useRef(new THREE.Vector2());
 
   const { camera, scene, gl } = useThree();
+  const [sceneReady, setSceneReady] = useState(false);
 
   const checkHotspotOcclusion = () => {
+    if (!sceneReady) return;
     const visibility = {};
 
     tourStops.forEach((stop) => {
@@ -205,6 +207,9 @@ const Scene = () => {
 
       controls.target.copy(initialTarget);
       controls.update();
+        setTimeout(() => {
+      checkHotspotOcclusion();
+    }, 1000);
     }
   }, []);
 
@@ -404,7 +409,7 @@ const Scene = () => {
         nextStop={nextStop}
         transitionProgress={transitionProgress}
         onMeshClick={handleTransition}
-        onSceneReady={checkHotspotOcclusion}
+       onSceneReady={() => setSceneReady(true)}
       />
 
       <MouseCursorRing
