@@ -3,6 +3,9 @@ import { useLoader } from "@react-three/fiber";
 import { useGLTF } from "@react-three/drei";
 import * as THREE from "three";
 import { TextureLoader } from "three";
+import { useFrame } from "@react-three/fiber";
+
+
 
 function RoomMesh({ meshPath, material, position, onClick, currentStopId }) {
   const { nodes } = useGLTF(meshPath);
@@ -50,14 +53,7 @@ export function RoomProjector({
       onSceneReady();
     }
   }, [tourStops]);
-  useEffect(() => {
-  if (onSceneReady) {
-    // Delay occlusion check until one frame after mount
-    requestAnimationFrame(() => {
-      onSceneReady();
-    });
-  }
-}, []);
+
 
 
   const currentHdriMap = useLoader(TextureLoader, currentStop.hdriPath);
@@ -77,6 +73,17 @@ export function RoomProjector({
       console.warn("❌ HDRI not fully loaded");
     }
   }, [currentHdriMap, nextHdriMap, currentStop, nextStop]);
+  const hasTriggeredSceneReady = useRef(false);
+
+useFrame(() => {
+  if (!hasTriggeredSceneReady.current && isHdriLoaded) {
+    hasTriggeredSceneReady.current = true;
+    if (onSceneReady) {
+      onSceneReady();
+    }
+  }
+});
+
 
   const sharedMaterial = useMemo(
     () =>
