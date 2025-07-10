@@ -146,6 +146,7 @@ const Scene = () => {
   const { camera, scene, gl } = useThree();
 
   const checkHotspotOcclusion = () => {
+    console.log("Called 'checkHotspotOcclusion'!!!");
     const visibility = {};
 
     tourStops.forEach((stop) => {
@@ -207,9 +208,9 @@ const Scene = () => {
       controls.target.copy(initialTarget);
       controls.update();
 
-      setTimeout(() => checkHotspotOcclusion(), 100);
+      checkHotspotOcclusion();
     }
-  }, [tourStops]);
+  }, []);
 
   // handle mouse events
   useEffect(() => {
@@ -353,7 +354,7 @@ const Scene = () => {
         setCursorVisibility(true);
         transitionDataRef.current = null;
 
-        setTimeout(() => checkHotspotOcclusion(), 100);
+        checkHotspotOcclusion();
       },
       onStart: () => {
         setCursorVisibility(false);
