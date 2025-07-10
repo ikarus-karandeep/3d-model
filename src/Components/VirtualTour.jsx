@@ -122,6 +122,8 @@ const Scene = () => {
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [transitionProgress, setTransitionProgress] = useState(0);
   const [hotspotVisibility, setHotspotVisibility] = useState({});
+  const [currentFov, setCurrentFov] = useState(tourConfig.camera.defaultFov);
+
   const [cursorInfo, setCursorInfo] = useState({
     position: new THREE.Vector3(),
     normal: new THREE.Vector3(),
@@ -129,19 +131,22 @@ const Scene = () => {
   });
 
   const setCursorVisibility = (state) => {
-    setCursorInfo((prev) => ({ ...prev, visible: state }));
+    setCursorInfo((prev) => ({
+      ...prev,
+      visible: state,
+    }));
   };
 
-  const controlsRef = useRef();
-  const transitionDataRef = useRef();
+  const controlsRef = useRef(null);
+  const transitionDataRef = useRef(null);
   const raycaster = useRef(new THREE.Raycaster());
   const mouse = useRef(new THREE.Vector2());
 
   const { camera, scene, gl } = useThree();
 
-  // ✅ Occlusion check
   const checkHotspotOcclusion = () => {
     const visibility = {};
+
     tourStops.forEach((stop) => {
       if (stop.id === currentStopIndex) {
         visibility[stop.id] = true;
@@ -149,17 +154,29 @@ const Scene = () => {
       }
 
       const hotspotPosition = stop.hotspotPosition || stop.position;
-      const direction = new THREE.Vector3().subVectors(hotspotPosition, camera.position);
+
+      const direction = new THREE.Vector3().subVectors(
+        hotspotPosition,
+        camera.position
+      );
       const distance = direction.length();
       direction.normalize();
 
       raycaster.current.set(camera.position, direction);
-      const intersects = raycaster.current.intersectObjects(scene.children, true);
+
+      const intersects = raycaster.current.intersectObjects(
+        scene.children,
+        true
+      );
 
       let occluded = false;
       for (let i = 0; i < intersects.length; i++) {
         const intersection = intersects[i];
-        if (intersection.object.userData.isHotspot) continue;
+
+        if (intersection.object.userData.isHotspot) {
+          continue;
+        }
+
         if (intersection.distance < distance - 0.1) {
           occluded = true;
           break;
@@ -169,34 +186,30 @@ const Scene = () => {
       visibility[stop.id] = !occluded;
     });
 
-    console.log("✅ Hotspot visibility:", visibility);
     setHotspotVisibility(visibility);
   };
 
-  // ✅ Initial camera setup
   useEffect(() => {
-    if (controlsRef.current) {
+    if (controlsRef.current && tourStops.length > 1) {
       const controls = controlsRef.current;
       const camera = controls.object;
-
-      camera.lookAt(tourStops[tourConfig.default.initialHotspotFacingIndex].position);
+      camera.lookAt(
+        tourStops[tourConfig.default.initialHotspotFacingIndex].position
+      );
 
       const lookDirection = new THREE.Vector3();
       camera.getWorldDirection(lookDirection);
-      const initialTarget = new THREE.Vector3().copy(camera.position).add(lookDirection.multiplyScalar(0.01));
+      const initialTarget = new THREE.Vector3()
+        .copy(camera.position)
+        .add(lookDirection.multiplyScalar(0.01));
 
       controls.target.copy(initialTarget);
       controls.update();
-
-      // Trigger initial occlusion check
-      setTimeout(() => checkHotspotOcclusion(), 100); // delay ensures scene is mounted
+       checkHotspotOcclusion();
     }
-
-    window.addEventListener("resize", checkHotspotOcclusion);
-    return () => window.removeEventListener("resize", checkHotspotOcclusion);
   }, []);
 
-  // ✅ Mouse events
+  // handle mouse events
   useEffect(() => {
     const handleMouseMove = (event) => {
       mouse.current.x = (event.clientX / window.innerWidth) * 2 - 1;
@@ -205,10 +218,15 @@ const Scene = () => {
       if (isTransitioning) return;
 
       raycaster.current.setFromCamera(mouse.current, camera);
-      const intersects = raycaster.current.intersectObjects(scene.children, true);
+
+      const intersects = raycaster.current.intersectObjects(
+        scene.children,
+        true
+      );
 
       if (intersects.length > 0) {
         const intersection = intersects[0];
+
         setCursorInfo((prev) => ({
           ...prev,
           position: intersection.point,
@@ -217,17 +235,27 @@ const Scene = () => {
       }
     };
 
+    // handle mouse scroll
     const handleMouseScroll = (event) => {
-      event.preventDefault();
+      event.preventDefault(); // Prevent page scroll
+
       const zoomSpeed = 0.5;
       const deltaY = event.deltaY;
 
-      camera.fov = THREE.MathUtils.clamp(
-        camera.fov + (deltaY > 0 ? zoomSpeed : -zoomSpeed),
-        tourConfig.camera.minFov,
-        tourConfig.camera.maxFov
-      );
-      camera.updateProjectionMatrix();
+      setCurrentFov((prev) => {
+        const newFov = prev + (deltaY > 0 ? zoomSpeed : -zoomSpeed);
+
+        const clampedFov = Math.max(
+          tourConfig.camera.minFov,
+          Math.min(tourConfig.camera.maxFov, newFov)
+        );
+
+        // Update camera FOV
+        camera.fov = clampedFov;
+        camera.updateProjectionMatrix();
+
+        return clampedFov;
+      });
     };
 
     const canvas = gl.domElement;
@@ -236,42 +264,58 @@ const Scene = () => {
 
     return () => {
       canvas.removeEventListener("mousemove", handleMouseMove);
-      canvas.removeEventListener("wheel", handleMouseScroll);
+      canvas.addEventListener("wheel", handleMouseScroll);
     };
   }, [camera, scene, gl, isTransitioning]);
 
-  // ✅ Frame updates
   useFrame(() => {
     if (!controlsRef.current) return;
+
     const camera = controlsRef.current.object;
     const controls = controlsRef.current;
 
     if (isTransitioning && transitionDataRef.current) {
-      const { startPosition, endPosition, startTarget, endTarget, progress } = transitionDataRef.current;
+      const { startPosition, endPosition, startTarget, endTarget, progress } =
+        transitionDataRef.current;
+
       const easeProgress = 1 - Math.pow(1 - progress, 3);
 
-      camera.position.lerpVectors(startPosition, endPosition, easeProgress);
-      controls.target.lerpVectors(startTarget, endTarget, easeProgress);
+      const currentPos = new THREE.Vector3().lerpVectors(
+        startPosition,
+        endPosition,
+        easeProgress
+      );
+      camera.position.copy(currentPos);
+
+      const currentTarget = new THREE.Vector3().lerpVectors(
+        startTarget,
+        endTarget,
+        easeProgress
+      );
+      controls.target.copy(currentTarget);
       controls.update();
-    } else {
+    } else if (!isTransitioning) {
       const lookDirection = new THREE.Vector3();
       camera.getWorldDirection(lookDirection);
-      const newTarget = new THREE.Vector3().copy(camera.position).add(lookDirection.multiplyScalar(0.001));
+
+      const newTarget = new THREE.Vector3()
+        .copy(camera.position)
+        .add(lookDirection.multiplyScalar(0.001));
+
       controls.target.lerp(newTarget, 0.1);
       controls.update();
-
-      // Check visibility on every frame
-      checkHotspotOcclusion();
     }
   });
 
-  // ✅ Handle camera transitions
   const handleTransition = (toStopId) => {
     if (isTransitioning || !controlsRef.current) return;
 
     const fromStop = tourStops[currentStopIndex];
     const toStop = tourStops.find((s) => s.id === toStopId);
-    if (!toStop || toStop.id === currentStopIndex) return;
+    if (!toStop || toStop.id === currentStopIndex) {
+      console.warn("Try to transition to Same stop. Aborting!!!");
+      return;
+    }
 
     setIsTransitioning(true);
     setNextStopIndex(toStop.id);
@@ -291,10 +335,10 @@ const Scene = () => {
       .add(directionToDestination.multiplyScalar(0.01));
 
     transitionDataRef.current = {
-      startPosition,
+      startPosition: startPosition,
       endPosition: toStop.position.clone(),
-      startTarget,
-      endTarget,
+      startTarget: startTarget,
+      endTarget: endTarget,
       progress: 0,
     };
 
@@ -307,16 +351,37 @@ const Scene = () => {
         setCursorVisibility(true);
         transitionDataRef.current = null;
 
-        checkHotspotOcclusion();
+       requestAnimationFrame(() => {
+    checkHotspotOcclusion();
+  });
       },
-      onStart: () => setCursorVisibility(false),
+      onStart: () => {
+        setCursorVisibility(false);
+      },
     });
 
-    tl.to(transitionDataRef.current, {
-      progress: 1,
-      duration: tourConfig.animation.transitionDuration,
-      ease: tourConfig.animation.easeType,
-    });
+    tl.to(
+      transitionDataRef.current,
+      {
+        progress: 1,
+        duration: tourConfig.animation.transitionDuration,
+        ease: tourConfig.animation.easeType,
+      },
+      0
+    );
+
+    tl.to(
+      { value: 0 },
+      {
+        value: 1,
+        duration: tourConfig.animation.transitionDuration,
+        ease: tourConfig.animation.easeType,
+        onUpdate: function () {
+          setTransitionProgress(this.targets()[0].value);
+        },
+      },
+      0
+    );
   };
 
   const currentStop = tourStops[currentStopIndex];
