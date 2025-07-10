@@ -129,6 +129,9 @@ const Scene = () => {
     normal: new THREE.Vector3(),
     visible: true,
   });
+useEffect(() => {
+  checkHotspotOcclusion(); // run once on load
+}, []);
 
   const setCursorVisibility = (state) => {
     setCursorInfo((prev) => ({
