@@ -146,7 +146,6 @@ const Scene = () => {
   const { camera, scene, gl } = useThree();
 
   const checkHotspotOcclusion = () => {
-    console.log("Called 'checkHotspotOcclusion'!!!");
     const visibility = {};
 
     tourStops.forEach((stop) => {
@@ -207,8 +206,6 @@ const Scene = () => {
 
       controls.target.copy(initialTarget);
       controls.update();
-
-      checkHotspotOcclusion();
     }
   }, []);
 
@@ -404,11 +401,11 @@ const Scene = () => {
 
       <RoomProjector
         tourStops={tourStops}
-        currentStopId={stop.id}
         currentStop={currentStop}
         nextStop={nextStop}
         transitionProgress={transitionProgress}
         onMeshClick={handleTransition}
+        onSceneReady={checkHotspotOcclusion}
       />
 
       <MouseCursorRing

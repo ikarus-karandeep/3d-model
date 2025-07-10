@@ -31,12 +31,12 @@ function RoomMesh({ meshPath, material, position, onClick, currentStopId }) {
 }
 
 export function RoomProjector({
-  currentStopId,
   tourStops,
   currentStop,
   nextStop,
   transitionProgress,
   onMeshClick,
+  onSceneReady,
 }) {
   const [isHdriLoaded, setIsHdriLoaded] = useState(false);
 
@@ -45,6 +45,10 @@ export function RoomProjector({
     tourStops.forEach((stop) => {
       useLoader.preload(TextureLoader, stop.hdriPath);
     });
+
+    if (onSceneReady) {
+      onSceneReady();
+    }
   }, [tourStops]);
 
   const currentHdriMap = useLoader(TextureLoader, currentStop.hdriPath);
