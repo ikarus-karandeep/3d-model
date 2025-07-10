@@ -146,15 +146,32 @@ const Scene = () => {
   const { camera, scene, gl } = useThree();
 
   const checkHotspotOcclusion = () => {
+    console.log("=== DEBUGGING checkHotspotOcclusion ===");
+    console.log("Scene children count:", scene.children.length);
+    console.log(
+      "Scene children:",
+      scene.children.map((child) => ({
+        name: child.name,
+        type: child.type,
+        visible: child.visible,
+        userData: child.userData,
+      }))
+    );
+
     const visibility = {};
 
-    tourStops.forEach((stop) => {
+    tourStops.forEach((stop, index) => {
+      console.log(`\n--- Processing stop ${index}: ${stop.name} ---`);
+
       if (stop.id === currentStopIndex) {
+        console.log("This is current stop, marking as visible");
         visibility[stop.id] = true;
         return;
       }
 
       const hotspotPosition = stop.hotspotPosition || stop.position;
+      console.log("Hotspot position:", hotspotPosition);
+      console.log("Camera position:", camera.position);
 
       const direction = new THREE.Vector3().subVectors(
         hotspotPosition,
@@ -163,6 +180,9 @@ const Scene = () => {
       const distance = direction.length();
       direction.normalize();
 
+      console.log("Direction:", direction);
+      console.log("Distance:", distance);
+
       raycaster.current.set(camera.position, direction);
 
       const intersects = raycaster.current.intersectObjects(
@@ -170,27 +190,80 @@ const Scene = () => {
         true
       );
 
+      console.log("Intersects found:", intersects.length);
+
+      if (intersects.length > 0) {
+        console.log(
+          "First 3 intersects:",
+          intersects.slice(0, 3).map((int) => ({
+            distance: int.distance,
+            objectType: int.object.type,
+            objectName: int.object.name,
+            userData: int.object.userData,
+            isHotspot: int.object.userData.isHotspot,
+          }))
+        );
+      }
+
       let occluded = false;
       for (let i = 0; i < intersects.length; i++) {
         const intersection = intersects[i];
 
+        console.log(`Checking intersection ${i}:`, {
+          distance: intersection.distance,
+          isHotspot: intersection.object.userData.isHotspot,
+          objectType: intersection.object.type,
+        });
+
         if (intersection.object.userData.isHotspot) {
+          console.log("Skipping hotspot object");
           continue;
         }
 
         if (intersection.distance < distance - 0.1) {
+          console.log(
+            "OCCLUDED! Intersection distance:",
+            intersection.distance,
+            "vs target distance:",
+            distance
+          );
           occluded = true;
           break;
         }
       }
 
+      console.log(`Stop ${stop.name} occluded:`, occluded);
       visibility[stop.id] = !occluded;
     });
+
+    console.log("Final visibility state:", visibility);
+    console.log("=== END DEBUG ===\n");
 
     setHotspotVisibility(visibility);
   };
 
   useEffect(() => {
+    console.log("Hotspot visibility changed:", hotspotVisibility);
+  }, [hotspotVisibility]);
+
+  // And add this to check scene readiness
+  useEffect(() => {
+    const checkScene = () => {
+      console.log("Scene ready check:");
+      console.log("- Scene children:", scene.children.length);
+      console.log("- Camera position:", camera.position);
+      console.log("- TourStops count:", tourStops.length);
+      console.log("- Current stop index:", currentStopIndex);
+
+      if (scene.children.length > 0) {
+        console.log("Scene appears ready, calling checkHotspotOcclusion");
+        checkHotspotOcclusion();
+      } else {
+        console.log("Scene not ready, retrying in 100ms");
+        setTimeout(checkScene, 100);
+      }
+    };
+
     if (controlsRef.current && tourStops.length > 1) {
       const controls = controlsRef.current;
       const camera = controls.object;
@@ -206,6 +279,9 @@ const Scene = () => {
 
       controls.target.copy(initialTarget);
       controls.update();
+
+      // Start the scene readiness check
+      setTimeout(checkScene, 50);
     }
   }, []);
 
