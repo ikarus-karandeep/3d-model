@@ -141,7 +141,6 @@ const Scene = () => {
   const transitionDataRef = useRef(null);
   const raycaster = useRef(new THREE.Raycaster());
   const mouse = useRef(new THREE.Vector2());
-  const scroll = useRef(0);
 
   const { camera, scene, gl } = useThree();
 

@@ -153,9 +153,9 @@ export const tourStops = [
       -1.1453415155410767
     ),
     hotspotPosition: new THREE.Vector3(
-      -5.441694259643555,
-      0.2,
-      -1.1453415155410767
+      -5.471694259643555,
+      0.42,
+      -1.1053415155410767
     ),
     tags: ["entrance", "modern", "spacious"],
   },

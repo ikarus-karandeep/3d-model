@@ -40,7 +40,7 @@ export function RoomProjector({
 }) {
   const [isHdriLoaded, setIsHdriLoaded] = useState(false);
 
-  // Preload HDRI maps (good for Vercel & online environments)
+  // Preload HDRI maps
   useEffect(() => {
     tourStops.forEach((stop) => {
       useLoader.preload(TextureLoader, stop.hdriPath);
@@ -73,6 +73,7 @@ export function RoomProjector({
     () =>
       new THREE.ShaderMaterial({
         side: THREE.DoubleSide,
+        wireframe: false,
         uniforms: {
           tEquirect: { value: null },
           uHdriCapturePoint: { value: new THREE.Vector3() },
