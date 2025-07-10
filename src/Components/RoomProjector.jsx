@@ -50,6 +50,15 @@ export function RoomProjector({
       onSceneReady();
     }
   }, [tourStops]);
+  useEffect(() => {
+  if (onSceneReady) {
+    // Delay occlusion check until one frame after mount
+    requestAnimationFrame(() => {
+      onSceneReady();
+    });
+  }
+}, []);
+
 
   const currentHdriMap = useLoader(TextureLoader, currentStop.hdriPath);
   currentHdriMap.mapping = THREE.EquirectangularReflectionMapping;
