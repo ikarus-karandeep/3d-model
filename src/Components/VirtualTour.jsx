@@ -209,7 +209,7 @@ const Scene = () => {
 
       setTimeout(() => checkHotspotOcclusion(), 100);
     }
-  }, []);
+  }, [tourStops]);
 
   // handle mouse events
   useEffect(() => {
