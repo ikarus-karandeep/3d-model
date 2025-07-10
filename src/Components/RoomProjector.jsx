@@ -2,7 +2,7 @@ import React, { useMemo, useRef, useEffect, useState } from "react";
 import { useLoader } from "@react-three/fiber";
 import { useGLTF } from "@react-three/drei";
 import * as THREE from "three";
-import { RGBELoader } from "three/examples/jsm/loaders/RGBELoader";
+import { TextureLoader } from "three";
 
 function RoomMesh({ meshPath, material, position, onClick }) {
   const { nodes } = useGLTF(meshPath);
@@ -41,19 +41,17 @@ export function RoomProjector({
   // Preload HDRI maps (good for Vercel & online environments)
   useEffect(() => {
     tourStops.forEach((stop) => {
-      useLoader.preload(RGBELoader, stop.hdriPath);
+      useLoader.preload(TextureLoader, stop.hdriPath);
     });
   }, [tourStops]);
 
-  const currentHdriMap = useLoader(RGBELoader, currentStop.hdriPath);
-  currentHdriMap.colorSpace = THREE.LinearSRGBColorSpace;
+  const currentHdriMap = useLoader(TextureLoader, currentStop.hdriPath);
   currentHdriMap.mapping = THREE.EquirectangularReflectionMapping;
 
   const nextHdriMap = useLoader(
-    RGBELoader,
+    TextureLoader,
     nextStop ? nextStop.hdriPath : currentStop.hdriPath
   );
-  nextHdriMap.colorSpace = THREE.LinearSRGBColorSpace;
   nextHdriMap.mapping = THREE.EquirectangularReflectionMapping;
 
   // Wait for both HDRIs to load
@@ -77,7 +75,7 @@ export function RoomProjector({
           uTransitionProgress: { value: 0.0 },
           uTime: { value: 0.0 },
           uOpacity: { value: 1.0 },
-          uExposure: { value: 1.2 },
+          uExposure: { value: 1.0 },
         },
         vertexShader: `
           varying vec3 vWorldPosition;
@@ -124,7 +122,6 @@ export function RoomProjector({
               );
               vec3 color = texture2D(tex, uv).rgb;
               color *= uExposure;
-              color = aces(color);
               return color;
           }
 

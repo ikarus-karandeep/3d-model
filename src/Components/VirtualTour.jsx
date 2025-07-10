@@ -29,7 +29,7 @@ const MouseCursorRing = ({ position, normal, visible }) => {
   const finalPosition = position.add(minifiedNormal);
 
   return (
-    <group position={position} quaternion={quaternion}>
+    <group position={finalPosition} quaternion={quaternion}>
       <mesh ref={ringRef}>
         <ringGeometry args={[0.08, 0.12, 32]} />
         <meshBasicMaterial
@@ -108,7 +108,7 @@ const NavigationHotspot = ({
       {isNotOccluded && (
         <Html position={[0, 0.1, 0]} center>
           <div className="hotspot-label">
-            {targetStop?.name || `Stop ${targetStopId}`}
+            {`${targetStop.name}: ${targetStop.description}`}
           </div>
         </Html>
       )}
@@ -192,7 +192,9 @@ const Scene = () => {
     if (controlsRef.current && tourStops.length > 1) {
       const controls = controlsRef.current;
       const camera = controls.object;
-      camera.lookAt(tourStops[1].position);
+      camera.lookAt(
+        tourStops[tourConfig.default.initialHotspotFacingIndex].position
+      );
 
       const lookDirection = new THREE.Vector3();
       camera.getWorldDirection(lookDirection);

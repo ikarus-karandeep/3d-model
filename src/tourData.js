@@ -3,8 +3,9 @@ import * as THREE from "three";
 export const tourStops = [
   {
     id: 0,
-    name: "01",
-    hdriPath: "/hdri/01.hdr",
+    name: "First Stop",
+    description: "Temporary Description",
+    hdriPath: "/hdri/01.jpg",
     meshPath: "/models/Geo_01.glb",
     position: new THREE.Vector3(
       -1.6115844249725342,
@@ -16,14 +17,13 @@ export const tourStops = [
       0.2,
       1.4716463088989258
     ),
-    description: "Temporary Description",
     tags: ["entrance", "modern", "spacious"],
-    connectedStops: [2, 3],
   },
   {
     id: 1,
-    name: "02",
-    hdriPath: "/hdri/02.hdr",
+    name: "Second Stop",
+    description: "Temporary Description",
+    hdriPath: "/hdri/02.jpg",
     meshPath: "/models/Geo_02.glb",
     position: new THREE.Vector3(
       0.295840859413147,
@@ -35,14 +35,13 @@ export const tourStops = [
       0.2,
       1.4640165567398071
     ),
-    description: "Temporary Description",
     tags: ["entrance", "modern", "spacious"],
-    connectedStops: [1, 3],
   },
   {
     id: 2,
-    name: "03",
-    hdriPath: "/hdri/03.hdr",
+    name: "Third Stop",
+    description: "Temporary Description",
+    hdriPath: "/hdri/03.jpg",
     meshPath: "/models/Geo_03.glb",
     position: new THREE.Vector3(
       -1.870994210243225,
@@ -54,14 +53,13 @@ export const tourStops = [
       0.2,
       -0.46629810333251953
     ),
-    description: "Temporary Description",
     tags: ["entrance", "modern", "spacious"],
-    connectedStops: [1, 2, 4],
   },
   {
     id: 3,
-    name: "04",
-    hdriPath: "/hdri/04.hdr",
+    name: "Fourth Stop",
+    description: "Temporary Description",
+    hdriPath: "/hdri/04.jpg",
     meshPath: "/models/Geo_04.glb",
     position: new THREE.Vector3(
       -0.9325409531593323,
@@ -73,14 +71,13 @@ export const tourStops = [
       0.2,
       -1.687050461769104
     ),
-    description: "Temporary Description",
     tags: ["entrance", "modern", "spacious"],
-    connectedStops: [3, 5],
   },
   {
     id: 4,
-    name: "05",
-    hdriPath: "/hdri/05.hdr",
+    name: "Fifth Stop",
+    description: "Temporary Description",
+    hdriPath: "/hdri/05.jpg",
     meshPath: "/models/Geo_05.glb",
     position: new THREE.Vector3(
       -0.9783191680908203,
@@ -92,14 +89,13 @@ export const tourStops = [
       0.2,
       -3.579216480255127
     ),
-    description: "Temporary Description",
     tags: ["entrance", "modern", "spacious"],
-    connectedStops: [4, 6],
   },
   {
     id: 5,
-    name: "06",
-    hdriPath: "/hdri/06.hdr",
+    name: "Sixth Stop",
+    description: "Temporary Description",
+    hdriPath: "/hdri/06.jpg",
     meshPath: "/models/Geo_06.glb",
     position: new THREE.Vector3(
       -3.007819652557373,
@@ -111,14 +107,13 @@ export const tourStops = [
       0.2,
       -2.6789116859436035
     ),
-    description: "Temporary Description",
     tags: ["entrance", "modern", "spacious"],
-    connectedStops: [5, 7],
   },
   {
     id: 6,
-    name: "07",
-    hdriPath: "/hdri/07.hdr",
+    name: "Seventh Stop",
+    description: "Temporary Description",
+    hdriPath: "/hdri/07.jpg",
     meshPath: "/models/Geo_07.glb",
     position: new THREE.Vector3(
       -4.823688507080078,
@@ -130,14 +125,13 @@ export const tourStops = [
       0.2,
       -2.717060089111328
     ),
-    description: "Temporary Description",
     tags: ["entrance", "modern", "spacious"],
-    connectedStops: [6],
   },
   {
     id: 7,
-    name: "08",
-    hdriPath: "/hdri/08.hdr",
+    name: "Eighth Stop",
+    description: "Temporary Description",
+    hdriPath: "/hdri/08.jpg",
     meshPath: "/models/Geo_08.glb",
     position: new THREE.Vector3(
       -3.4884908199310303,
@@ -149,14 +143,13 @@ export const tourStops = [
       0.2,
       -0.9698584079742432
     ),
-    description: "Temporary Description",
     tags: ["entrance", "modern", "spacious"],
-    connectedStops: [6, 9, 10],
   },
   {
     id: 8,
-    name: "09",
-    hdriPath: "/hdri/09.hdr",
+    name: "Ninth Stop",
+    description: "Temporary Description",
+    hdriPath: "/hdri/09.jpg",
     meshPath: "/models/Geo_09.glb",
     position: new THREE.Vector3(
       -5.441694259643555,
@@ -168,14 +161,13 @@ export const tourStops = [
       0.2,
       -1.1453415155410767
     ),
-    description: "Temporary Description",
     tags: ["entrance", "modern", "spacious"],
-    connectedStops: [8, 10],
   },
   {
     id: 9,
-    name: "10",
-    hdriPath: "/hdri/10.hdr",
+    name: "Tenth Stop",
+    description: "Temporary Description",
+    hdriPath: "/hdri/10.jpg",
     meshPath: "/models/Geo_10.glb",
     position: new THREE.Vector3(
       -3.6181955337524414,
@@ -187,14 +179,13 @@ export const tourStops = [
       0.2,
       1.0596424341201782
     ),
-    description: "Temporary Description",
     tags: ["entrance", "modern", "spacious"],
-    connectedStops: [8, 11],
   },
   {
     id: 10,
-    name: "11",
-    hdriPath: "/hdri/11.hdr",
+    name: "Eleventh Stop",
+    description: "Temporary Description",
+    hdriPath: "/hdri/11.jpg",
     meshPath: "/models/Geo_11.glb",
     position: new THREE.Vector3(
       -4.457462787628174,
@@ -206,13 +197,15 @@ export const tourStops = [
       0.2,
       2.524545192718506
     ),
-    description: "Temporary Description",
     tags: ["entrance", "modern", "spacious"],
-    connectedStops: [8, 10],
   },
 ];
 
 export const tourConfig = {
+  default: {
+    initialHotspotFacingIndex: 3,
+  },
+
   // Animation settings
   animation: {
     transitionDuration: 1.5,
@@ -230,9 +223,9 @@ export const tourConfig = {
   // Camera settings
   camera: {
     fov: 65,
-    minPolarAngle: Math.PI / 10,
-    maxPolarAngle: Math.PI - Math.PI / 10,
+    minPolarAngle: Math.PI / 4,
+    maxPolarAngle: Math.PI - Math.PI / 4,
     damping: true,
-    dampingFactor: 0.1,
+    dampingFactor: 0.2,
   },
 };
