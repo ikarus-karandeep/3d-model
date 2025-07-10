@@ -86,14 +86,14 @@ const NavigationHotspot = ({
           setHovered(false);
           cursorstate(true);
         }}
-        userData={{ isHotspot: true, isHelper: true }}>
+        userData={{ isHotspot: true }}>
         <ringGeometry args={[0, 0.075, 32]} />
         <meshBasicMaterial color={0xffffff} transparent={true} opacity={0.8} />
       </mesh>
 
       <mesh
         rotation={[-Math.PI / 2, 0, 0]}
-        userData={{ isHotspot: true, isHelper: true }}
+        userData={{ isHotspot: true }}
         onPointerOver={() => {
           cursorstate(false);
         }}
@@ -144,133 +144,50 @@ const Scene = () => {
 
   const { camera, scene, gl } = useThree();
 
- 
-const checkHotspotOcclusion = () => {
-  const visibility = {};
+  const checkHotspotOcclusion = () => {
+    const visibility = {};
 
-  tourStops.forEach((stop) => {
-    if (stop.id === currentStopIndex) {
-      visibility[stop.id] = true;
-      return;
-    }
+    tourStops.forEach((stop) => {
+      if (stop.id === currentStopIndex) {
+        visibility[stop.id] = true;
+        return;
+      }
 
-    const hotspotPosition = stop.hotspotPosition || stop.position;
+      const hotspotPosition = stop.hotspotPosition || stop.position;
 
-    const direction = new THREE.Vector3().subVectors(
-      hotspotPosition,
-      camera.position
-    );
-    const distance = direction.length();
-    direction.normalize();
-
-    raycaster.current.set(camera.position, direction);
-    
-    // Make sure we're checking against the right objects
-    const objectsToCheck = scene.children.filter(child => {
-      // Only check against mesh objects that aren't hotspots
-      return (
-        child.isMesh && 
-        !child.userData.isHotspot &&
-        child.visible &&
-        child.material &&
-        child.material.visible !== false
+      const direction = new THREE.Vector3().subVectors(
+        hotspotPosition,
+        camera.position
       );
+      const distance = direction.length();
+      direction.normalize();
+
+      raycaster.current.set(camera.position, direction);
+
+      const intersects = raycaster.current.intersectObjects(
+        scene.children,
+        true
+      );
+
+      let occluded = false;
+      for (let i = 0; i < intersects.length; i++) {
+        const intersection = intersects[i];
+
+        if (intersection.object.userData.isHotspot) {
+          continue;
+        }
+
+        if (intersection.distance < distance - 0.1) {
+          occluded = true;
+          break;
+        }
+      }
+
+      visibility[stop.id] = !occluded;
     });
 
-    const intersects = raycaster.current.intersectObjects(objectsToCheck, true);
-
-    let occluded = false;
-    for (let i = 0; i < intersects.length; i++) {
-      const intersection = intersects[i];
-
-      // Skip if it's a hotspot or helper object
-      if (intersection.object.userData.isHotspot || 
-          intersection.object.userData.isHelper) {
-        continue;
-      }
-
-      // Add a small tolerance buffer
-      if (intersection.distance < distance - 0.2) {
-        occluded = true;
-        break;
-      }
-    }
-
-    visibility[stop.id] = !occluded;
-  });
-
-  setHotspotVisibility(visibility);
-};
-
-// Add this useEffect to run occlusion check when camera moves:
-useEffect(() => {
-  if (!controlsRef.current || isTransitioning) return;
-
-  const controls = controlsRef.current;
-  
-  const handleControlsChange = () => {
-    if (!isTransitioning) {
-      // Debounce the occlusion check
-      clearTimeout(window.occlusionCheckTimeout);
-      window.occlusionCheckTimeout = setTimeout(() => {
-        checkHotspotOcclusion();
-      }, 100);
-    }
+    setHotspotVisibility(visibility);
   };
-
-  controls.addEventListener('change', handleControlsChange);
-  
-  return () => {
-    controls.removeEventListener('change', handleControlsChange);
-    clearTimeout(window.occlusionCheckTimeout);
-  };
-}, [currentStopIndex, isTransitioning]);
-
-// Also update your useFrame to include occlusion checking:
-useFrame(() => {
-  if (!controlsRef.current) return;
-
-  const camera = controlsRef.current.object;
-  const controls = controlsRef.current;
-
-  if (isTransitioning && transitionDataRef.current) {
-    const { startPosition, endPosition, startTarget, endTarget, progress } =
-      transitionDataRef.current;
-
-    const easeProgress = 1 - Math.pow(1 - progress, 3);
-
-    const currentPos = new THREE.Vector3().lerpVectors(
-      startPosition,
-      endPosition,
-      easeProgress
-    );
-    camera.position.copy(currentPos);
-
-    const currentTarget = new THREE.Vector3().lerpVectors(
-      startTarget,
-      endTarget,
-      easeProgress
-    );
-    controls.target.copy(currentTarget);
-    controls.update();
-  } else if (!isTransitioning) {
-    const lookDirection = new THREE.Vector3();
-    camera.getWorldDirection(lookDirection);
-
-    const newTarget = new THREE.Vector3()
-      .copy(camera.position)
-      .add(lookDirection.multiplyScalar(0.001));
-
-    controls.target.lerp(newTarget, 0.1);
-    controls.update();
-    
-    // Check occlusion every few frames to avoid performance issues
-    if (Math.floor(Date.now() / 100) % 3 === 0) {
-      checkHotspotOcclusion();
-    }
-  }
-});
-
 
   useEffect(() => {
     if (controlsRef.current && tourStops.length > 1) {
