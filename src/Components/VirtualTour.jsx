@@ -266,8 +266,13 @@ const Scene = () => {
       canvas.addEventListener("wheel", handleMouseScroll);
     };
   }, [camera, scene, gl, isTransitioning]);
+  const frameCounter = useRef(0);
 
   useFrame(() => {
+    frameCounter.current++;
+  if (frameCounter.current % 10 === 0) {
+    checkHotspotOcclusion();
+  }
     if (!controlsRef.current) return;
 
     const camera = controlsRef.current.object;
