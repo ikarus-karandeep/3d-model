@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { OrbitControls, Html, Text } from "@react-three/drei";
+import { OrbitControls, Html } from "@react-three/drei";
 import * as THREE from "three";
 import { tourStops, tourConfig } from "../tourData";
 import { gsap } from "gsap";
@@ -33,7 +33,7 @@ const MouseCursorRing = ({ position, normal, visible }) => {
       <mesh ref={ringRef}>
         <ringGeometry args={[0.08, 0.12, 32]} />
         <meshBasicMaterial
-          color={0x007fff}
+          color={0xffffff}
           transparent={true}
           opacity={0.6}
           side={THREE.DoubleSide}
@@ -64,7 +64,7 @@ const NavigationHotspot = ({
       if (hovered) {
         meshRef.current.material.color.setHex(0x4a90e2);
       } else {
-        meshRef.current.material.color.setHex(0x007fff);
+        meshRef.current.material.color.setHex(0xffffff);
       }
     }
   });
@@ -73,7 +73,7 @@ const NavigationHotspot = ({
 
   return (
     <group position={position}>
-      {/* Clickable hotspot sphere */}
+      {/* Clickable hotspot ring */}
       <mesh
         rotation={[-Math.PI / 2, 0, 0]}
         ref={meshRef}
@@ -88,7 +88,7 @@ const NavigationHotspot = ({
         }}
         userData={{ isHotspot: true }}>
         <ringGeometry args={[0, 0.075, 32]} />
-        <meshBasicMaterial color={0x007fff} transparent={true} opacity={0.8} />
+        <meshBasicMaterial color={0xffffff} transparent={true} opacity={0.8} />
       </mesh>
 
       <mesh
@@ -100,8 +100,8 @@ const NavigationHotspot = ({
         onPointerOut={() => {
           cursorstate(true);
         }}>
-        <ringGeometry args={[0.08, 0.12, 32]} />
-        <meshBasicMaterial color={0x007fff} transparent={true} opacity={0.4} />
+        <ringGeometry args={[0.08, 0.09, 32]} />
+        <meshBasicMaterial color={0xffffff} transparent={true} opacity={0.4} />
       </mesh>
 
       {/* Label - only show when hotspot is not occluded */}
@@ -122,6 +122,7 @@ const Scene = () => {
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [transitionProgress, setTransitionProgress] = useState(0);
   const [hotspotVisibility, setHotspotVisibility] = useState({});
+  const [currentFov, setCurrentFov] = useState(tourConfig.camera.defaultFov);
 
   const [cursorInfo, setCursorInfo] = useState({
     position: new THREE.Vector3(),
@@ -140,6 +141,7 @@ const Scene = () => {
   const transitionDataRef = useRef(null);
   const raycaster = useRef(new THREE.Raycaster());
   const mouse = useRef(new THREE.Vector2());
+  const scroll = useRef(0);
 
   const { camera, scene, gl } = useThree();
 
@@ -209,6 +211,7 @@ const Scene = () => {
     }
   }, []);
 
+  // handle mouse events
   useEffect(() => {
     const handleMouseMove = (event) => {
       mouse.current.x = (event.clientX / window.innerWidth) * 2 - 1;
@@ -234,11 +237,36 @@ const Scene = () => {
       }
     };
 
+    // handle mouse scroll
+    const handleMouseScroll = (event) => {
+      event.preventDefault(); // Prevent page scroll
+
+      const zoomSpeed = 0.5;
+      const deltaY = event.deltaY;
+
+      setCurrentFov((prev) => {
+        const newFov = prev + (deltaY > 0 ? zoomSpeed : -zoomSpeed);
+
+        const clampedFov = Math.max(
+          tourConfig.camera.minFov,
+          Math.min(tourConfig.camera.maxFov, newFov)
+        );
+
+        // Update camera FOV
+        camera.fov = clampedFov;
+        camera.updateProjectionMatrix();
+
+        return clampedFov;
+      });
+    };
+
     const canvas = gl.domElement;
     canvas.addEventListener("mousemove", handleMouseMove);
+    canvas.addEventListener("wheel", handleMouseScroll);
 
     return () => {
       canvas.removeEventListener("mousemove", handleMouseMove);
+      canvas.addEventListener("wheel", handleMouseScroll);
     };
   }, [camera, scene, gl, isTransitioning]);
 
@@ -274,7 +302,7 @@ const Scene = () => {
 
       const newTarget = new THREE.Vector3()
         .copy(camera.position)
-        .add(lookDirection.multiplyScalar(0.01));
+        .add(lookDirection.multiplyScalar(0.001));
 
       controls.target.lerp(newTarget, 0.1);
       controls.update();
@@ -286,7 +314,10 @@ const Scene = () => {
 
     const fromStop = tourStops[currentStopIndex];
     const toStop = tourStops.find((s) => s.id === toStopId);
-    if (!toStop || toStop.id === currentStopIndex) return;
+    if (!toStop || toStop.id === currentStopIndex) {
+      console.warn("Try to transition to Same stop. Aborting!!!");
+      return;
+    }
 
     setIsTransitioning(true);
     setNextStopIndex(toStop.id);
@@ -362,6 +393,7 @@ const Scene = () => {
         ref={controlsRef}
         enablePan={false}
         enableZoom={false}
+        rotateSpeed={-0.2}
         enabled={!isTransitioning}
         minPolarAngle={tourConfig.camera.minPolarAngle}
         maxPolarAngle={tourConfig.camera.maxPolarAngle}
@@ -371,9 +403,11 @@ const Scene = () => {
 
       <RoomProjector
         tourStops={tourStops}
+        currentStopId={stop.id}
         currentStop={currentStop}
         nextStop={nextStop}
         transitionProgress={transitionProgress}
+        onMeshClick={handleTransition}
       />
 
       <MouseCursorRing
@@ -407,7 +441,8 @@ export const VirtualTour = () => {
 
   return (
     <div style={{ width: "100vw", height: "100vh", position: "relative" }}>
-      <Canvas camera={{ position: initialPos, fov: tourConfig.camera.fov }}>
+      <Canvas
+        camera={{ position: initialPos, fov: tourConfig.camera.defaultFov }}>
         <Scene />
       </Canvas>
     </div>

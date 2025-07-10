@@ -4,7 +4,7 @@ import { useGLTF } from "@react-three/drei";
 import * as THREE from "three";
 import { TextureLoader } from "three";
 
-function RoomMesh({ meshPath, material, position, onClick }) {
+function RoomMesh({ meshPath, material, position, onClick, currentStopId }) {
   const { nodes } = useGLTF(meshPath);
   const meshRef = useRef();
 
@@ -25,11 +25,13 @@ function RoomMesh({ meshPath, material, position, onClick }) {
       material={material}
       position={position}
       onClick={onClick}
+      userData={currentStopId}
     />
   );
 }
 
 export function RoomProjector({
+  currentStopId,
   tourStops,
   currentStop,
   nextStop,
@@ -161,20 +163,10 @@ export function RoomProjector({
   sharedMaterial.uniforms.uTime.value = performance.now() * 0.001;
   sharedMaterial.uniforms.uExposure.value = 1.2;
 
-  const handleMeshClick = (event) => {
+  // leaving this for now, will come back to it later
+  const handleMeshClick = (id) => {
     if (onMeshClick) {
-      const point = event.point;
-      const face = event.face;
-      const object = event.object;
-
-      onMeshClick({
-        point,
-        face,
-        object,
-        uv: event.uv,
-        distance: event.distance,
-        normal: face ? face.normal : new THREE.Vector3(0, 1, 0),
-      });
+      // onMeshClick(id.object.userData);
     }
   };
 
@@ -184,6 +176,7 @@ export function RoomProjector({
         tourStops.map((stop) => (
           <RoomMesh
             key={stop.id}
+            currentStopId={stop.id}
             meshPath={stop.meshPath}
             material={sharedMaterial}
             position={stop.position}
